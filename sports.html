@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3DZ3EZSK49"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","G-3DZ3EZSK49");</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Live Sports Streams - HM CINEMA</title>
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/icon.png">
+    <meta name="theme-color" content="#04100A">
+    <meta name="description" content="Watch live football, basketball and sports streams free on HM Cinema. Live scores and match streams.">
+    <meta property="og:title" content="Live Sports Streams - HM CINEMA">
+    <meta property="og:description" content="Live football matches, scores and free sports streams.">
+    <meta property="og:image" content="https://hm-cinema.me/og-image.jpg">
+    <meta property="og:url" content="https://hm-cinema.me/sports">
+    <link rel="canonical" href="https://hm-cinema.me/sports">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/style.css?v=10">
+    <style>
+    /* ============================================================
+       SPORTS PAGE — FULL OVERRIDE
+       Color palette: deep pitch-green + electric lime + dark navy
+    ============================================================ */
+    :root {
+        --sp-bg:        #04100A;
+        --sp-bg-mid:    #091A10;
+        --sp-bg-card:   #0C1F14;
+        --sp-green:     #1DDB6A;
+        --sp-green-dim: #13A34E;
+        --sp-lime:      #AAFF57;
+        --sp-red:       #FF3B4E;
+        --sp-blue:      #60A5FA;
+        --sp-border:    rgba(29,219,106,0.12);
+        --sp-border-hi: rgba(29,219,106,0.28);
+        --sp-text:      #E8F5EC;
+        --sp-muted:     rgba(232,245,236,0.45);
+    }
+
+    html, body { background: var(--sp-bg) !important; color: var(--sp-text); }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .header {
+        background: rgba(4,16,10,0.97) !important;
+        border-bottom: 1px solid rgba(29,219,106,0.18) !important;
+        backdrop-filter: blur(16px) !important;
+    }
+    .header .logo-seal { background: linear-gradient(135deg, #1DDB6A 0%, #0a8040 100%) !important; }
+    .header .header-tagline { color: var(--sp-green) !important; }
+    .nav-links a { color: rgba(232,245,236,0.7) !important; }
+    .nav-links a:hover { color: var(--sp-green) !important; }
+    .nav-links a[href="/sports"] { color: var(--sp-green) !important; font-weight: 700; }
+
+    /* ── Drawer ─────────────────────────────────────────────── */
+    .side-drawer { background: #061410 !important; border-right: 1px solid rgba(29,219,106,0.12) !important; }
+    .drawer-logo-seal { background: linear-gradient(135deg,#1DDB6A,#0a8040) !important; }
+    .drawer-nav-item.active a { color: var(--sp-green) !important; background: rgba(29,219,106,0.08) !important; }
+    .drawer-social-btn { border-color: rgba(29,219,106,0.2) !important; }
+    .drawer-social-btn:hover { color: var(--sp-green) !important; border-color: var(--sp-green) !important; }
+
+    /* ── Hero Banner ─────────────────────────────────────────── */
+    .sp-hero {
+        position: relative;
+        padding: 54px 20px 36px;
+        text-align: center;
+        overflow: hidden;
+        background: linear-gradient(180deg, #061410 0%, var(--sp-bg) 100%);
+    }
+    .sp-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(ellipse 70% 55% at 50% -10%, rgba(29,219,106,0.18) 0%, transparent 70%),
+            url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='28' fill='none' stroke='rgba(29,219,106,0.04)' stroke-width='1'/%3E%3Cline x1='2' y1='30' x2='58' y2='30' stroke='rgba(29,219,106,0.04)' stroke-width='1'/%3E%3Cline x1='30' y1='2' x2='30' y2='58' stroke='rgba(29,219,106,0.04)' stroke-width='1'/%3E%3C/svg%3E") center center;
+        background-size: auto, 60px 60px;
+        pointer-events: none;
+    }
+    .sp-hero-icon {
+        font-size: 2.6rem;
+        color: var(--sp-green);
+        display: block;
+        margin-bottom: 14px;
+        filter: drop-shadow(0 0 24px rgba(29,219,106,0.6));
+        animation: sp-float 3s ease-in-out infinite;
+    }
+    @keyframes sp-float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+    }
+    .sp-hero-title {
+        font-size: clamp(30px, 7vw, 58px);
+        font-weight: 900;
+        color: #fff;
+        line-height: 1;
+        margin: 0 0 10px;
+        letter-spacing: -1px;
+    }
+    .sp-hero-title .accent { color: var(--sp-green); }
+    .sp-hero-sub {
+        color: var(--sp-muted);
+        font-size: 14px;
+        margin: 0 0 22px;
+        letter-spacing: 0.2px;
+    }
+    .sp-hero-badges {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    .sp-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 16px;
+        border-radius: 40px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+    }
+    .sp-badge-live {
+        background: rgba(255,59,78,0.12);
+        border: 1px solid rgba(255,59,78,0.3);
+        color: var(--sp-red);
+    }
+    .sp-badge-free {
+        background: rgba(29,219,106,0.1);
+        border: 1px solid rgba(29,219,106,0.25);
+        color: var(--sp-green);
+    }
+    .sp-badge-hd {
+        background: rgba(96,165,250,0.1);
+        border: 1px solid rgba(96,165,250,0.22);
+        color: var(--sp-blue);
+    }
+    .sp-live-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: sp-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes sp-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.3; transform: scale(0.65); }
+    }
+
+    /* ── Tabs ────────────────────────────────────────────────── */
+    .sp-tabs-wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+    .sports-tabs {
+        display: flex !important;
+        gap: 8px !important;
+        padding: 20px 0 0 !important;
+        overflow-x: auto;
+        scrollbar-width: none;
+        flex-wrap: nowrap;
+        border-bottom: 1px solid rgba(29,219,106,0.1);
+        padding-bottom: 0 !important;
+        margin-bottom: 0;
+    }
+    .sports-tabs::-webkit-scrollbar { display: none; }
+    .sports-tab {
+        padding: 10px 22px 11px !important;
+        border-radius: 10px 10px 0 0 !important;
+        border: 1px solid transparent !important;
+        border-bottom: none !important;
+        background: transparent !important;
+        color: var(--sp-muted) !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s ease;
+        letter-spacing: 0.2px;
+        position: relative;
+        bottom: -1px;
+    }
+    .sports-tab:hover {
+        color: var(--sp-green) !important;
+        background: rgba(29,219,106,0.06) !important;
+    }
+    .sports-tab.active {
+        background: var(--sp-bg-card) !important;
+        color: var(--sp-green) !important;
+        border-color: rgba(29,219,106,0.25) !important;
+        border-bottom-color: var(--sp-bg-card) !important;
+        font-weight: 800 !important;
+    }
+    .sports-tab.sports-refresh { padding: 10px 14px 11px !important; }
+
+    /* ── Status Bar ──────────────────────────────────────────── */
+    .sports-status-bar {
+        background: rgba(255,59,78,0.08) !important;
+        border: 1px solid rgba(255,59,78,0.2) !important;
+        border-radius: 10px !important;
+        color: var(--sp-red) !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        padding: 10px 18px !important;
+        margin: 16px 0 4px !important;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .sports-live-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: var(--sp-red);
+        animation: sp-pulse 1.2s ease-in-out infinite;
+        flex-shrink: 0;
+    }
+
+    /* ── Match Grid ──────────────────────────────────────────── */
+    .sports-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)) !important;
+        gap: 14px !important;
+        padding: 20px 0 40px !important;
+    }
+    @media (max-width: 640px) {
+        .sports-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
+    }
+
+    /* ── Match Cards ─────────────────────────────────────────── */
+    .scard {
+        background: var(--sp-bg-card) !important;
+        border: 1px solid rgba(29,219,106,0.1) !important;
+        border-radius: 16px !important;
+        padding: 16px !important;
+        transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s !important;
+        position: relative;
+        overflow: hidden;
+    }
+    .scard:hover {
+        transform: translateY(-3px) !important;
+        border-color: var(--sp-border-hi) !important;
+        box-shadow: 0 10px 36px rgba(0,0,0,0.4) !important;
+    }
+    .scard-is-live {
+        border-color: rgba(255,59,78,0.28) !important;
+        background: linear-gradient(135deg, #140608 0%, #0c1a14 100%) !important;
+    }
+    .scard-is-live::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent 0%, var(--sp-red) 50%, transparent 100%);
+    }
+
+    /* Card header */
+    .scard-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 14px !important;
+        gap: 8px;
+    }
+    .scard-league {
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        color: var(--sp-muted) !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 60% !important;
+    }
+
+    /* Status badges */
+    .scard-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        flex-shrink: 0;
+        text-transform: uppercase;
+    }
+    .scard-live {
+        background: rgba(255,59,78,0.15) !important;
+        color: var(--sp-red) !important;
+        border: 1px solid rgba(255,59,78,0.3) !important;
+        animation: sp-live-glow 2s ease-in-out infinite;
+    }
+    @keyframes sp-live-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,78,0); }
+        50% { box-shadow: 0 0 10px 2px rgba(255,59,78,0.2); }
+    }
+    .scard-upcoming {
+        background: rgba(96,165,250,0.1) !important;
+        color: var(--sp-blue) !important;
+        border: 1px solid rgba(96,165,250,0.22) !important;
+    }
+    .scard-finished {
+        background: rgba(255,255,255,0.04) !important;
+        color: rgba(255,255,255,0.3) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+    }
+
+    /* Teams */
+    .scard-teams {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        margin-bottom: 14px !important;
+    }
+    .scard-team {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 8px !important;
+        flex: 1 !important;
+        min-width: 0 !important;
+    }
+    .scard-logo {
+        width: 52px !important;
+        height: 52px !important;
+        object-fit: contain !important;
+        border-radius: 50% !important;
+        background: rgba(29,219,106,0.05) !important;
+        padding: 6px !important;
+        box-sizing: border-box;
+        border: 1px solid rgba(29,219,106,0.12) !important;
+    }
+    .scard-logo-placeholder {
+        width: 52px !important;
+        height: 52px !important;
+        border-radius: 50% !important;
+        background: rgba(255,255,255,0.04) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: rgba(255,255,255,0.2) !important;
+        font-size: 20px !important;
+    }
+    .scard-team-name {
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        color: var(--sp-text) !important;
+        text-align: center !important;
+        line-height: 1.25 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 100% !important;
+    }
+
+    /* Score / center */
+    .scard-score {
+        font-size: 28px !important;
+        font-weight: 900 !important;
+        color: #fff !important;
+        letter-spacing: -2px !important;
+        line-height: 1 !important;
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 0 20px rgba(29,219,106,0.4);
+    }
+    .scard-score.muted {
+        color: rgba(255,255,255,0.3) !important;
+        font-size: 22px !important;
+        text-shadow: none !important;
+    }
+    .scard-score-sep {
+        color: rgba(255,255,255,0.2) !important;
+        margin: 0 2px !important;
+        font-size: 22px !important;
+    }
+    .scard-vs {
+        font-size: 13px !important;
+        font-weight: 800 !important;
+        color: rgba(29,219,106,0.3) !important;
+        letter-spacing: 2px !important;
+    }
+    .scard-kickoff {
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        color: var(--sp-blue) !important;
+        text-align: center !important;
+        line-height: 1.4 !important;
+    }
+
+    /* Watch button */
+    .scard-footer { margin-top: 2px; }
+    .scard-watch-btn {
+        width: 100% !important;
+        padding: 11px 16px !important;
+        border-radius: 10px !important;
+        border: none !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        cursor: pointer !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        transition: all 0.2s ease !important;
+        letter-spacing: 0.2px;
+        background: linear-gradient(135deg, var(--sp-green) 0%, var(--sp-green-dim) 100%) !important;
+        color: #04100A !important;
+        box-shadow: 0 4px 18px rgba(29,219,106,0.3) !important;
+    }
+    .scard-watch-btn:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 7px 26px rgba(29,219,106,0.45) !important;
+    }
+    /* disabled (upcoming / no stream) */
+    .scard-watch-btn:not([data-mid]) {
+        background: rgba(255,255,255,0.05) !important;
+        color: rgba(255,255,255,0.3) !important;
+        box-shadow: none !important;
+        cursor: default !important;
+        border: 1px solid rgba(255,255,255,0.07) !important;
+    }
+    .scard-watch-btn:not([data-mid]):hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
+    /* ── Loading / Empty ────────────────────────────────────── */
+    .loading {
+        grid-column: 1/-1;
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--sp-muted);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+    }
+    .spinner {
+        width: 38px; height: 38px;
+        border: 3px solid rgba(29,219,106,0.15);
+        border-top-color: var(--sp-green);
+        border-radius: 50%;
+        animation: sp-spin 0.8s linear infinite;
+    }
+    @keyframes sp-spin { to { transform: rotate(360deg); } }
+    .sports-empty {
+        grid-column: 1/-1;
+        text-align: center;
+        padding: 60px 20px;
+        color: rgba(255,255,255,0.3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+    }
+    .sports-empty i { font-size: 48px; color: rgba(29,219,106,0.2); }
+    .sports-empty p { font-size: 14px; line-height: 1.6; max-width: 280px; }
+
+    /* ── Live Modal Override ─────────────────────────────────── */
+    #liveSportsModal .lsm-head {
+        background: linear-gradient(90deg, var(--sp-bg) 0%, #091A10 100%) !important;
+        border-bottom: 1px solid rgba(29,219,106,0.15) !important;
+    }
+    #liveSportsModal .lsm-close:hover { color: var(--sp-green) !important; }
+    #liveSportsModal .lsm-stream-btn:hover { border-color: var(--sp-green) !important; color: #fff !important; }
+    #liveSportsModal .lsm-stream-btn.lsm-stream-active { background: var(--sp-green) !important; border-color: var(--sp-green) !important; color: #04100A !important; }
+
+    /* ── Page layout ─────────────────────────────────────────── */
+    .sp-page-body {
+        padding-top: 68px;
+        min-height: 100vh;
+    }
+    .sp-content-wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+    .sp-back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--sp-muted);
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        padding: 18px 0 0;
+        transition: color 0.2s;
+    }
+    .sp-back-link:hover { color: var(--sp-green); }
+
+    @media (max-width: 768px) {
+        .sp-hero { padding: 44px 16px 28px; }
+        .sp-content-wrap { padding: 0 12px; }
+    }
+    </style>
+    <script src="https://obvioussecretive.com/de/2f/b8/de2fb8a4c3ef9dd70a22e0785ed76341.js"></script>
+    <script src="https://obvioussecretive.com/3d/85/79/3d857978d4d9fbe352d78054228cc767.js"></script>
+</head>
+<body>
+    <!-- Drawer Overlay -->
+    <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+    <!-- Side Drawer -->
+    <nav class="side-drawer" id="sideDrawer">
+        <div class="drawer-header">
+            <div class="drawer-logo-wrap">
+                <div class="drawer-logo-seal"><svg width="13" height="13" viewBox="0 0 13 13"><polygon points="2,1 12,6.5 2,12" fill="white"/></svg></div>
+                <div><div class="drawer-logo-text">HM CINEMA</div><div class="drawer-logo-sub">Premium Streaming</div></div>
+            </div>
+            <button class="drawer-close-btn" onclick="closeDrawer()"><i class="fas fa-times"></i></button>
+        </div>
+        <ul class="drawer-nav">
+            <li class="drawer-nav-item"><a href="/"><i class="fas fa-home"></i><span>Home</span></a></li>
+            <li class="drawer-nav-item active"><a href="/sports"><i class="fas fa-futbol"></i><span>Live Sports</span></a></li>
+            <li class="drawer-divider"></li>
+            <li class="drawer-nav-item"><a href="/#movies"><i class="fas fa-film"></i><span>Movies</span></a></li>
+            <li class="drawer-nav-item"><a href="/#tv"><i class="fas fa-tv"></i><span>TV Series</span></a></li>
+            <li class="drawer-nav-item"><a href="/#trending"><i class="fas fa-fire"></i><span>Trending</span></a></li>
+            <li class="drawer-divider"></li>
+            <li class="drawer-nav-item"><a href="/#new"><i class="fas fa-calendar-alt"></i><span>New Releases</span></a></li>
+        </ul>
+        <div class="drawer-footer">
+            <div class="drawer-footer-label">Find Us</div>
+            <div class="drawer-socials">
+                <a href="https://wa.me/233509977126" class="drawer-social-btn" target="_blank"><i class="fab fa-whatsapp"></i></a>
+                <a href="https://t.me/official_kango" class="drawer-social-btn" target="_blank"><i class="fab fa-telegram"></i></a>
+                <a href="https://github.com/OfficialKango" class="drawer-social-btn" target="_blank"><i class="fab fa-github"></i></a>
+                <a href="https://www.youtube.com/@official_manuel" class="drawer-social-btn" target="_blank"><i class="fab fa-youtube"></i></a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <div class="logo-group">
+                    <a href="/" class="logo drawer-logo-wrap">
+                        <div class="drawer-logo-seal"><svg width="13" height="13" viewBox="0 0 13 13"><polygon points="2,1 12,6.5 2,12" fill="white"/></svg></div>
+                        <div>
+                            <div class="drawer-logo-text">HM CINEMA</div>
+                            <div class="drawer-logo-sub">Premium Streaming</div>
+                        </div>
+                    </a>
+                </div>
+                <ul class="nav-links" id="navLinks">
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/#movies">Movies</a></li>
+                    <li><a href="/#tv">TV Series</a></li>
+                    <li><a href="/sports"><i class="fas fa-futbol"></i> Live Sports</a></li>
+                </ul>
+                <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="openDrawer()">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Page body -->
+    <div class="sp-page-body">
+
+        <!-- Hero Banner -->
+        <div class="sp-hero">
+            <i class="fas fa-futbol sp-hero-icon"></i>
+            <h1 class="sp-hero-title">LIVE <span class="accent">SPORTS</span></h1>
+            <p class="sp-hero-sub">Real-time scores &amp; free live match streams</p>
+            <div class="sp-hero-badges">
+                <span class="sp-badge sp-badge-live">
+                    <span class="sp-live-dot"></span>
+                    Live Now
+                </span>
+                <span class="sp-badge sp-badge-free">
+                    <i class="fas fa-check" style="font-size:10px"></i>
+                    100% Free
+                </span>
+                <span class="sp-badge sp-badge-hd">
+                    <i class="fas fa-tv" style="font-size:10px"></i>
+                    HD Streams
+                </span>
+            </div>
+        </div>
+
+        <!-- Tabs + Grid -->
+        <div class="sp-content-wrap">
+            <a href="/" class="sp-back-link"><i class="fas fa-arrow-left"></i> Back to Home</a>
+
+            <div class="sp-tabs-wrap" style="padding:0">
+                <div class="sports-tabs" id="sportsTabs">
+                    <button class="sports-tab active" onclick="loadSports(this,'all')">All Matches</button>
+                    <button class="sports-tab" onclick="loadSports(this,'live')">🔴 Live Now</button>
+                    <button class="sports-tab" onclick="loadSports(this,'upcoming')">🕐 Upcoming</button>
+                    <button class="sports-tab" onclick="loadSports(this,'streams')">📡 With Streams</button>
+                    <button class="sports-tab sports-refresh" onclick="refreshSports()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+                </div>
+            </div>
+
+            <div id="sportsStatusBar" class="sports-status-bar" style="display:none"></div>
+
+            <div class="sports-grid" id="sportsGrid">
+                <div class="loading"><div class="spinner"></div><div>Loading matches…</div></div>
+            </div>
+        </div>
+
+    </div><!-- end sp-page-body -->
+
+    <script>
+    function openDrawer(){document.getElementById("sideDrawer").classList.add("open");document.getElementById("drawerOverlay").classList.add("open");document.body.style.overflow="hidden"}
+    function closeDrawer(){document.getElementById("sideDrawer").classList.remove("open");document.getElementById("drawerOverlay").classList.remove("open");document.body.style.overflow=""}
+    // Stubs for sports.js compatibility
+    function showHomePage(){window.location.href="/"}
+    function showSportsPage(){}
+    var homePage={style:{display:"none"}};
+    var searchPage={style:{display:"none"}};
+    var sportsPage={style:{display:"block"}};
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+    <script src="/js/sports.js?v=13"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        loadSports(document.querySelector(".sports-tab.active"), "all");
+        if(typeof startSportsAutoRefresh === 'function') startSportsAutoRefresh();
+    });
+    </script>
+</body>
+</html>
