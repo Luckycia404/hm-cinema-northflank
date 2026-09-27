@@ -1,0 +1,1840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3DZ3EZSK49"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-3DZ3EZSK49');</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title id="pageTitle">Watch Movie Online - HM CINEMA</title>
+    <meta name="robots" content="noindex,follow">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/icon.png">
+    <meta name="theme-color" content="#000000">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/style.css?v=10">
+    <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#000;min-height:100vh;font-family:inherit;color:#fff}
+
+    /* Top bar */
+    .watch-topbar{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(10,10,20,.95);backdrop-filter:blur(12px);position:sticky;top:0;z-index:200;border-bottom:1px solid rgba(255,255,255,.07)}
+    .watch-back{display:flex;align-items:center;gap:7px;color:#bbb;text-decoration:none;font-size:13px;font-weight:600;padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.08);transition:background .18s,color .18s;border:none;cursor:pointer;white-space:nowrap}
+    .watch-back:hover{background:rgba(255,255,255,.15);color:#fff}
+    .watch-title{font-size:14px;font-weight:700;color:#fff;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .watch-ep-label{font-size:12px;color:#888;flex-shrink:0}
+
+    /* Page layout */
+    .watch-page{display:flex;flex-direction:column;min-height:100vh}
+    .watch-player-wrap{width:100%;background:#000}
+    .watch-player-wrap .video-container{border-radius:0;min-height:0}
+
+    /* Error panel */
+    .watch-error{display:none;padding:32px 20px;text-align:center;color:#888;background:#0a0a12}
+    .watch-error i{font-size:38px;color:#333;display:block;margin-bottom:12px}
+    .watch-error h3{color:#ddd;font-size:16px;margin-bottom:8px}
+    .watch-error a{color:#e50914;text-decoration:none;font-weight:700;display:inline-block;margin-top:12px}
+
+    /* Below player */
+    
+    
+    
+    
+    
+
+    /* Episode nav */
+    
+    
+    
+    
+    
+    
+    
+
+    /* Dub options */
+    .dub-option{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#ccc;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+    .dub-option:hover{background:rgba(255,255,255,.12);color:#fff}
+    .dub-option.dub-active{background:rgba(229,9,20,.15);border-color:rgba(229,9,20,.4);color:#e50914}
+    .dub-check{opacity:0;font-size:10px}
+    .dub-option.dub-active .dub-check{opacity:1}
+
+    /* Quick message */
+    .quick-msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.82);color:#fff;padding:12px 22px;border-radius:10px;z-index:99999;font-size:14px;font-weight:600;backdrop-filter:blur(8px);pointer-events:none;transition:opacity .4s}
+
+    /* Seek timer toast */
+    .seek-toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.75);color:#fff;padding:8px 16px;border-radius:8px;font-size:15px;font-weight:700;pointer-events:none;opacity:0;transition:opacity .2s;z-index:30}
+    .seek-toast.show{opacity:1}
+
+    /* Resume banner */
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+    /* Autoplay toast */
+    @keyframes slideInRight{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+    /* Spinner */
+    .buffering-spinner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;z-index:20}
+    .buffering-ring{width:50px;height:50px;border:4px solid rgba(255,255,255,.15);border-top-color:#e50914;border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Tap to play */
+
+    /* Rotate active */
+    .rotate-btn.active{color:#e50914}
+
+    /* Below-player layout */
+    .watch-body{padding:16px 14px 40px;background:#0a0a12;min-height:60px}
+    .wb-header{margin-bottom:18px}
+    .wb-header{margin-bottom:18px}
+    .wb-title-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+    .wb-title{font-size:17px;font-weight:800;color:#fff;flex:1;line-height:1.3}
+    .wb-meta{font-size:12px;color:#888;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .wb-meta span{display:flex;align-items:center;gap:4px}
+    .wb-meta .wb-rating{color:#f5c518;font-weight:700}
+    /* Season tabs */
+    .ep-season-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .ep-season-tab{padding:6px 16px;border-radius:20px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#aaa;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;text-decoration:none}
+    .ep-season-tab:hover{background:rgba(255,255,255,.14);color:#fff}
+    .ep-season-tab.active{background:#e50914;border-color:transparent;color:#fff}
+    /* Episode grid */
+    .ep-nav-wrap{background:#0d0d1a;border-radius:12px;padding:14px;margin-top:4px}
+    .ep-nav-hdr{margin-bottom:10px}
+    .ep-nav-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:8px;max-height:260px;overflow-y:auto;padding-right:2px}
+    .ep-nav-grid::-webkit-scrollbar{width:4px}
+    .ep-nav-grid::-webkit-scrollbar-track{background:rgba(255,255,255,.04);border-radius:2px}
+    .ep-nav-grid::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
+    .ep-nav-btn{display:flex;align-items:center;justify-content:center;padding:10px 6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#ccc;font-size:13px;font-weight:700;text-decoration:none;transition:all .15s;cursor:pointer}
+    .ep-nav-btn:hover{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.25);transform:translateY(-1px)}
+    .ep-nav-btn.current{background:#e50914;border-color:#e50914;color:#fff;box-shadow:0 2px 10px rgba(229,9,20,.4)}
+    @media(max-width:480px){
+      .wb-title-row{flex-wrap:wrap}
+      .ep-nav-grid{grid-template-columns:repeat(auto-fill,minmax(42px,1fr))}
+    }
+    
+        /* ── Quality picker button ── */
+        .quality-picker-wrap { position: relative; display: flex; align-items: center; }
+        .quality-btn {
+            display: flex; align-items: center; gap: 5px;
+            background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+            border-radius: 8px; color: #fff; font-size: 12px; font-weight: 700;
+            padding: 6px 10px; cursor: pointer; white-space: nowrap;
+            transition: background .2s, border-color .2s;
+        }
+        .quality-btn:hover, .quality-btn.open { background: rgba(229,9,20,.25); border-color: rgba(229,9,20,.55); }
+        .quality-btn i { font-size: 11px; color: #e50914; }
+        .quality-btn .qbtn-arrow { transition: transform .2s; color: rgba(255,255,255,.5); }
+        .quality-btn.open .qbtn-arrow { transform: rotate(180deg); }
+        .quality-popup {
+            display: none; position: fixed; top: auto; right: auto; left: auto;
+            background: #111318; border: 1px solid rgba(229,9,20,.25);
+            border-radius: 14px; min-width: 170px; overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,.7); z-index: 500;
+            animation: qPopIn .18s ease;
+        }
+        @keyframes qPopIn { from{opacity:0;transform:translateY(8px) scale(.97);}to{opacity:1;transform:none;} }
+        .quality-popup.open { display: block; }
+        .quality-popup-header {
+            padding: 11px 14px 8px; font-size: 11px; font-weight: 700;
+            letter-spacing: .8px; text-transform: uppercase;
+            color: rgba(255,255,255,.4); border-bottom: 1px solid rgba(255,255,255,.07);
+        }
+        .quality-popup-list { padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+        .quality-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 9px 10px; border-radius: 9px; cursor: pointer; font-size: 13px;
+            font-weight: 600; color: #ccc; transition: background .15s, color .15s;
+        }
+        .quality-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+        .quality-item.active { background: rgba(229,9,20,.18); color: #fff; }
+        .quality-item .qi-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+            background: rgba(255,255,255,.2); transition: background .15s;
+        }
+        .quality-item.active .qi-dot { background: #e50914; box-shadow: 0 0 6px rgba(229,9,20,.6); }
+        .subtitle-dropdown.player-floating-subtitle {
+            z-index: 1100 !important;
+            max-height: calc(100vh - 16px);
+            overflow-y: auto;
+        }
+        .subtitle-option.subtitle-empty {
+            color: rgba(255,255,255,.5);
+            cursor: default;
+            justify-content: center;
+            text-align: center;
+        }
+        @media (max-width: 768px) {
+            .quality-picker-wrap {
+                order: 2;
+                flex: 1 1 auto;
+                min-width: 80px;
+                justify-content: center;
+            }
+            #dubPanel.player-floating-dub {
+                position: fixed !important;
+                left: 8px;
+                right: 8px;
+                bottom: calc(76px + env(safe-area-inset-bottom));
+                width: auto !important;
+                margin: 0 !important;
+                padding: 10px !important;
+                background: #111318;
+                border: 1px solid rgba(229,9,20,.25);
+                border-radius: 14px;
+                box-shadow: 0 8px 32px rgba(0,0,0,.7);
+                z-index: 1100;
+            }
+        }
+
+/* Responsive Display Banner between the player and download area */
+.hm-watch-display-ad{display:flex;justify-content:center;align-items:flex-start;width:100%;max-width:100%;min-height:90px;padding:18px 12px 6px;background:#0a0a12;overflow:hidden;text-align:center;box-sizing:border-box}
+.hm-watch-display-ad .hm-ad-unit{display:inline-flex;align-items:center;justify-content:center;max-width:100%;overflow:hidden}
+.hm-watch-display-ad .hm-ad-mobile{display:none}
+.hm-watch-display-ad iframe{display:block;max-width:100%;border:0}
+@media (max-width:767px){
+  .hm-watch-display-ad{min-height:250px;padding:16px 0 4px}
+  .hm-watch-display-ad .hm-ad-desktop{display:none}
+  .hm-watch-display-ad .hm-ad-mobile{display:inline-flex}
+}
+</style>
+<style>
+.watch-dl-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 18px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s,border-color .2s;white-space:nowrap}
+.watch-dl-btn:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3)}
+.dub-option.dub-empty{justify-content:center;color:rgba(255,255,255,.55);cursor:default;text-align:center}
+#dubBtn.unavailable{color:rgba(255,255,255,.45);background:rgba(255,255,255,.05)}
+</style>
+    <script src="https://obvioussecretive.com/de/2f/b8/de2fb8a4c3ef9dd70a22e0785ed76341.js"></script>
+</head>
+<body>
+<div class="watch-page">
+
+    <!-- Top Bar -->
+    <div class="watch-topbar">
+        <a class="watch-back" id="backBtn" href="/"><i class="fas fa-arrow-left"></i> Back</a>
+        <div class="watch-title" id="watchTitle">Watch Movie</div>
+        <span class="watch-ep-label" id="epLabel"></span>
+    </div>
+
+    <script>
+    // Set the title before slower ad/player scripts and API calls run.
+    (function () {
+        const params = new URLSearchParams(location.search);
+        const title = (params.get('title') || '').trim().slice(0, 200);
+        if (!title) return;
+        const season = parseInt(params.get('season') || '0', 10) || 0;
+        const episode = parseInt(params.get('episode') || '0', 10) || 0;
+        const label = title + (season ? ' S' + season + (episode ? 'E' + episode : '') : '');
+        const titleEl = document.getElementById('watchTitle');
+        if (titleEl) titleEl.textContent = label;
+    })();
+    </script>
+
+    <!-- Player -->
+    <div class="watch-player-wrap">
+        <div class="video-container" id="videoContainer">
+            <div class="video-wrapper">
+                <video class="video-player" id="videoPlayer" playsinline></video>
+
+                <!-- Seek timer toast -->
+                <div class="seek-toast" id="seekToast">0:00 / 0:00</div>
+
+                <!-- Buffering spinner -->
+                <div class="buffering-spinner" id="bufferingSpinner">
+                    <div class="buffering-ring"></div>
+                </div>
+                </div>
+
+
+                <!-- Big play btn (center, shows when paused) -->
+                <div class="big-play-btn" id="bigPlayBtn" style="display:flex" onclick="togglePlay()">
+                    <i class="fas fa-play"></i>
+                </div>
+
+                <!-- Gesture indicator -->
+                <div class="gesture-indicator" id="gestureIndicator">
+                    <div class="gesture-icon" id="gestureIcon"><i class="fas fa-sun"></i></div>
+                    <div class="gesture-bar"><div class="gesture-bar-fill" id="gestureBarFill"></div></div>
+                    <div class="gesture-value" id="gestureValue">100%</div>
+                </div>
+            </div>
+
+            <!-- Custom controls -->
+            <div class="custom-controls" id="customControls">
+                <div class="progress-container" id="progressContainer">
+                    <div class="buffered-bar" id="bufferedBar"></div>
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+
+                <!-- Dub panel (above controls bar) -->
+                <div id="dubPanel" style="display:none;padding:8px 4px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px;">
+                    <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;">&#127925; Audio Language</div>
+                    <div id="dubOptionsList" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:200px;overflow-y:auto;"></div>
+                </div>
+
+                <div class="controls-bottom">
+                    <div class="controls-left">
+                        <button class="control-btn prev-btn" id="prevBtn" title="Previous Episode" style="display:none">
+                            <i class="fas fa-step-backward"></i>
+                        </button>
+                        <button class="control-btn" id="playPauseBtn" onclick="togglePlay()">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="control-btn next-btn" id="nextBtn" title="Next Episode" style="display:none">
+                            <i class="fas fa-step-forward"></i>
+                        </button>
+                        <button class="control-btn" id="muteBtn" onclick="toggleMute()">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                        <button class="skip-btn" id="rewindBtn" title="Rewind 10s" onclick="skip(-10)">
+                            <i class="fas fa-backward"></i>
+                        </button>
+                        <button class="skip-btn" id="forwardBtn" title="Forward 10s" onclick="skip(10)">
+                            <i class="fas fa-forward"></i>
+                        </button>
+                        <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                    </div>
+                    <div class="controls-right">
+                        <!-- Dub (Audio Language) -->
+                        <div class="dub-selector-container" id="dubSelectorContainer" style="display:none">
+                            <button class="control-btn" id="dubBtn" title="Audio Language" onclick="toggleDubPanel(event)">
+                                <i class="fas fa-language"></i>
+                            </button>
+                        </div>
+                        <!-- Subtitle -->
+                        <div class="subtitle-selector-container">
+                            <button class="control-btn subtitle-btn" id="subtitleBtn" title="Subtitles" onclick="toggleSubtitleDropdown(event)">
+                                <i class="fas fa-closed-captioning"></i>
+                            </button>
+                            <div class="subtitle-dropdown" id="subtitleDropdown">
+                                <div class="subtitle-option" data-lang="off" onclick="selectSubtitle('off')">
+                                    <i class="fas fa-times"></i> Off
+                                </div>
+                                <div class="subtitle-options-list" id="subtitleOptionsList"></div>
+                            </div>
+                        </div>
+                        <!-- Speed -->
+                        <div class="speed-selector-container">
+                            <button class="control-btn speed-btn" id="speedBtn" title="Playback Speed" onclick="toggleSpeedDropdown(event)">
+                                <span id="speedLabel">1x</span>
+                            </button>
+                            <div class="speed-dropdown" id="speedDropdown">
+                                <div class="speed-option" data-speed="0.25" onclick="setPlaybackSpeed(0.25)">0.25x</div>
+                                <div class="speed-option" data-speed="0.5"  onclick="setPlaybackSpeed(0.5)">0.5x</div>
+                                <div class="speed-option" data-speed="0.75" onclick="setPlaybackSpeed(0.75)">0.75x</div>
+                                <div class="speed-option active" data-speed="1" onclick="setPlaybackSpeed(1)">1x <span style="color:rgba(255,255,255,.4);font-size:.7rem">Normal</span></div>
+                                <div class="speed-option" data-speed="1.25" onclick="setPlaybackSpeed(1.25)">1.25x</div>
+                                <div class="speed-option" data-speed="1.5"  onclick="setPlaybackSpeed(1.5)">1.5x</div>
+                                <div class="speed-option" data-speed="1.75" onclick="setPlaybackSpeed(1.75)">1.75x</div>
+                                <div class="speed-option" data-speed="2"    onclick="setPlaybackSpeed(2)">2x</div>
+                            </div>
+                        </div>
+                        <!-- Zoom (4-level) -->
+                        <button class="zoom-btn" id="zoomBtn" title="Zoom" onclick="cycleZoom()">
+                            <i class="fas fa-expand-alt"></i>
+                        </button>
+                        <!-- PiP -->
+                        <button class="pip-btn" id="pipBtn" title="Picture-in-Picture" onclick="togglePip()">
+                            <i class="fas fa-clone"></i>
+                        </button>
+                        <!-- Quality -->
+                        <div class="quality-picker-wrap" id="qualityPickerWrap">
+                            <button class="quality-btn" id="qualityBtn" onclick="toggleQualityPopup(event)" title="Quality">
+                                <i class="fas fa-layer-group"></i>
+                                <span id="qualityBtnLabel">Quality</span>
+                                <i class="fas fa-chevron-down qbtn-arrow"></i>
+                            </button>
+                            <div class="quality-popup" id="qualityPopup">
+                                <div class="quality-popup-header">Quality</div>
+                                <div class="quality-popup-list" id="qualityPopupList"></div>
+                            </div>
+                        </div>
+                        <!-- Rotate / Landscape lock -->
+                        <button class="rotate-btn control-btn" id="rotateBtn" title="Force Landscape" onclick="toggleLandscape()">
+                            <i class="fas fa-rotate"></i>
+                        </button>
+                        <!-- Fullscreen -->
+                        <button class="control-btn" id="fullscreenBtn" onclick="toggleFullscreen()">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error panel -->
+    <div class="watch-error" id="watchError">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3 id="watchErrorMsg">Stream unavailable</h3>
+        <p>No streams found for this title right now.</p>
+        <a id="errorBackBtn" href="/">← Go back</a>
+    </div>
+
+    <!-- Adsterra display banner between player and download area -->
+    <section class="hm-watch-display-ad" aria-label="Advertisement">
+        <div class="hm-ad-unit hm-ad-desktop">
+            <script>
+              atOptions = {
+                'key' : 'af8c90b93a1b2b35f15f160dd416e63e',
+                'format' : 'iframe',
+                'height' : 90,
+                'width' : 728,
+                'params' : {}
+              };
+            </script>
+            <script src="https://obvioussecretive.com/af8c90b93a1b2b35f15f160dd416e63e/invoke.js"></script>
+        </div>
+        <div class="hm-ad-unit hm-ad-mobile">
+            <script>
+              atOptions = {
+                'key' : '6fe599a1949aae9c9a83353bbe70061e',
+                'format' : 'iframe',
+                'height' : 250,
+                'width' : 300,
+                'params' : {}
+              };
+            </script>
+            <script src="https://obvioussecretive.com/6fe599a1949aae9c9a83353bbe70061e/invoke.js"></script>
+        </div>
+    </section>
+
+    <!-- Below player -->
+    <div class="watch-body">
+
+        <!-- Title + meta + download -->
+        <div class="wb-header" id="wbHeader" style="display:none">
+            <div class="wb-title-row">
+                <h2 class="wb-title" id="wbTitle"></h2>
+                <button class="watch-dl-btn" id="watchDlBtn" onclick="startWatchDownload()" style="display:none"><i class="fas fa-download"></i> Download</button>
+            </div>
+            <div class="wb-meta" id="wbMeta"></div>
+        </div>
+
+        <!-- Season + episode nav (TV only) -->
+        <div class="ep-nav-wrap" id="watchEpNav" style="display:none">
+            <div class="ep-nav-hdr">
+                <div class="ep-season-tabs" id="epSeasonTabs"></div>
+            </div>
+            <div class="ep-nav-grid" id="epNavGrid"></div>
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js"></script>
+<script>
+// ── URL params ──────────────────────────────────────────────────────────────
+const params   = new URLSearchParams(location.search);
+const movieId  = location.pathname.replace('/watch/','').split('?')[0].split('/')[0] || params.get('id');
+const titleHint = (params.get('title') || '').trim().slice(0, 200);
+const season   = parseInt(params.get('season'))  || 0;
+const episode  = parseInt(params.get('episode')) || 0;
+
+// ── State ───────────────────────────────────────────────────────────────────
+let hls              = null;
+let dashPlayer       = null;
+let dashRetryTimer   = null;
+let dashRetryCount   = 0;
+const DASH_RETRY_LIMIT = 2;
+let allSources       = [];
+let currentSrcIdx    = 0;
+let currentMovieId   = movieId;
+let currentSeason    = season;
+let currentEpisode   = episode;
+let episodeList      = [];
+let currentEpIdx     = 0;
+let zoomLevel        = 0;
+let isPiPActive      = false;
+let isForcedLandscape = false;
+let videoBrightness  = 1;
+let isSeeking        = false;
+let controlsShown    = true;
+let stallTimer       = null;
+let lastProgressTime = Date.now();
+let autoPlayTimer    = null;
+let currentDubsData  = { hasDubs: false, original: null, dubs: [] };
+let recoveryInFlight = false;
+let recoveryAttempts = 0;
+let dashQualityOptions = [];
+let activeDashQuality = -1;
+
+// ── DOM refs ────────────────────────────────────────────────────────────────
+const video         = document.getElementById('videoPlayer');
+const spinner       = document.getElementById('bufferingSpinner');
+const bigPlay       = document.getElementById('bigPlayBtn');
+const ppBtn         = document.getElementById('playPauseBtn');
+const progressBar   = document.getElementById('progressBar');
+const bufferedBar   = document.getElementById('bufferedBar');
+const timeDisplay   = document.getElementById('timeDisplay');
+const seekToast     = document.getElementById('seekToast');
+const controls      = document.getElementById('customControls');
+const container     = document.getElementById('videoContainer');
+const gestureEl     = document.getElementById('gestureIndicator');
+const gestureIcon   = document.getElementById('gestureIcon');
+const gestureBarFill= document.getElementById('gestureBarFill');
+const gestureValue  = document.getElementById('gestureValue');
+
+// The details page already knows the title, so show it immediately while the
+// player sources and full metadata load in parallel.
+if (titleHint) {
+    const titleWithEpisode = titleHint + (season ? ' S' + season + (episode ? 'E' + episode : '') : '');
+    document.getElementById('watchTitle').textContent = titleWithEpisode;
+    document.title = titleWithEpisode + ' - HM CINEMA';
+    window._watchTitle = titleHint;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function fmt(s) {
+    if (!s || isNaN(s)) return '0:00';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function isUrlExpired(url) {
+    try { const m=(url||'').match(/[?&]t=(\d+)/); return m ? Math.floor(Date.now()/1000)>parseInt(m[1]):false; }
+    catch(e){ return false; }
+}
+
+async function fetchAPI(endpoint) {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(()=>ctrl.abort(), 15000);
+    const res  = await fetch(endpoint, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    return res.json();
+}
+
+function showQuickMsg(msg, type) {
+    document.querySelectorAll('.quick-msg').forEach(e=>e.remove());
+    const el = document.createElement('div');
+    el.className = 'quick-msg';
+    el.style.borderLeft = `3px solid ${type==='error'?'#e50914':type==='success'?'#22c55e':'#3b82f6'}`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),400); }, 2000);
+}
+
+// ── Playback position save / restore ────────────────────────────────────────
+function playbackKey(id) {
+    return 'pb_'+id+(currentSeason?'_s'+currentSeason+'e'+currentEpisode:'');
+}
+function savePosition() {
+    if (!currentMovieId || video.currentTime < 5 || !video.duration) return;
+    const pct = video.currentTime / video.duration * 100;
+    if (pct < 95) {
+        localStorage.setItem(playbackKey(currentMovieId), JSON.stringify({
+            t: video.currentTime, dur: video.duration, ts: Date.now()
+        }));
+    } else {
+        localStorage.removeItem(playbackKey(currentMovieId));
+    }
+}
+function restorePosition() {
+    const raw = localStorage.getItem(playbackKey(currentMovieId));
+    if (!raw) return false;
+    try {
+        const d = JSON.parse(raw);
+        const daysSince = (Date.now()-d.ts)/(1000*60*60*24);
+        if (daysSince<30 && d.t>5) {
+            video.addEventListener('loadeddata', function onLD() {
+                video.removeEventListener('loadeddata', onLD);
+                video.currentTime = d.t;
+                showQuickMsg('Resuming from '+fmt(d.t),'info');
+            });
+            return true;
+        }
+    } catch(e) {}
+    return false;
+}
+
+// ── Source helpers ──────────────────────────────────────────────────────────
+function sourceQualityLabel(source, index) {
+    const url = source?.streamUrl||source?.proxyUrl||source?.directUrl||source?.cdnUrl||source?.url||'';
+    if (isDashSource(source, url)) return 'Auto (DASH)';
+
+    const raw = String(source?.quality || source?.resolution || source?.label || '').trim();
+    const numeric = raw.match(/\d{3,4}/);
+    if (numeric) return numeric[0] + 'p';
+    if (raw) return raw;
+    return 'Stream ' + (index + 1);
+}
+
+function enhanceSources(sources) {
+    if (!Array.isArray(sources)) return [];
+    return sources.map((s,i)=>{
+        let q = s.quality||'';
+        const url = s.streamUrl||s.proxyUrl||s.directUrl||s.url||'';
+        if (!q && url){ const m=url.match(/(\d+p|HD|SD|FHD|UHD|4K)/i); if(m) q=m[1].toUpperCase(); }
+        return {...s, quality:q||'Stream '+(i+1), label:sourceQualityLabel(s,i)};
+    });
+}
+async function fetchSources(id, se=0, ep=0) {
+    let ep2 = '/api/sources/'+id;
+    const qp = new URLSearchParams();
+    if (se>0||ep>0){ qp.set('season',se); qp.set('episode',ep); }
+    const qs = qp.toString(); if(qs) ep2+='?'+qs;
+    const res = await fetchAPI(ep2);
+    let sources=[], captions=[];
+    if (res&&res.data) {
+        if (Array.isArray(res.data.processedSources)) sources=res.data.processedSources;
+        else if (Array.isArray(res.data.downloads))   sources=res.data.downloads;
+        else if (Array.isArray(res.data))             sources=res.data;
+        if (Array.isArray(res.data.captions)) captions=res.data.captions;
+    } else if (res&&Array.isArray(res.processedSources)) sources=res.processedSources;
+    if (res&&Array.isArray(res.captions)) captions=res.captions;
+    return { sources: enhanceSources(sources), captions };
+}
+
+async function fetchCaptions(id, se=0, ep=0) {
+    let endpoint = '/api/captions/' + encodeURIComponent(id);
+    const qp = new URLSearchParams();
+    if (se > 0 || ep > 0) {
+        qp.set('season', se);
+        qp.set('episode', ep);
+    }
+    const query = qp.toString();
+    if (query) endpoint += '?' + query;
+
+    const response = await fetchAPI(endpoint);
+    const captions = response?.data?.captions || response?.captions || (Array.isArray(response?.data) ? response.data : []);
+    if (!Array.isArray(captions)) return [];
+    return captions.map(c => ({
+        ...c,
+        lan: c.language || c.lan || '',
+        lanName: c.languageName || c.lanName || c.label || c.language || 'Subtitle',
+        url: c.url || c.file || c.src || c.subtitleUrl || ''
+    })).filter(c => c.url);
+}
+
+// ── Stream loading ──────────────────────────────────────────────────────────
+function isDashSource(src, url) {
+    return String(src?.format || '').toLowerCase() === 'dash' || /\.mpd(?:[?#]|$)/i.test(url || '');
+}
+
+// Prefer the signed CDN URL so the viewer's browser makes the media request.
+// The VPS proxy remains available as a fallback for browser/CORS failures.
+function getPlaybackUrl(src, useProxy = false) {
+    if (isDashSource(src)) return src.proxyUrl||src.streamUrl||src.directUrl||src.cdnUrl||src.url||'';
+    // MP4 sources with provider signing data use the same-origin session proxy
+    // by default; the raw CDN URL remains available for diagnostics.
+    if (src.proxyPreferred || useProxy) return src.streamUrl||src.proxyUrl||src.directUrl||src.cdnUrl||src.url||'';
+    return src.directUrl||src.cdnUrl||src.streamUrl||src.proxyUrl||src.url||'';
+}
+
+function resetDashPlayer() {
+    if (dashRetryTimer) {
+        clearTimeout(dashRetryTimer);
+        dashRetryTimer = null;
+    }
+    if (dashPlayer) {
+        try { dashPlayer.reset(); } catch (e) { console.warn('[DASH] reset failed', e); }
+        dashPlayer = null;
+    }
+    dashQualityOptions = [];
+    activeDashQuality = -1;
+}
+
+function scheduleDashRetry(src, url) {
+    if (dashRetryCount >= DASH_RETRY_LIMIT) {
+        dashRetryCount = 0;
+        handleVideoError();
+        return;
+    }
+
+    dashRetryCount++;
+    const attempt = dashRetryCount;
+    const delay = attempt * 1000;
+    console.warn(`[DASH] Retrying failed playback in ${delay}ms (attempt ${attempt}/${DASH_RETRY_LIMIT})`);
+    dashRetryTimer = setTimeout(() => {
+        dashRetryTimer = null;
+        if (currentSrcIdx < allSources.length && allSources[currentSrcIdx] === src) {
+            loadStream(src, { preserveDashRetries: true });
+        }
+    }, delay);
+}
+
+function loadStream(src, options = {}) {
+    if (!options.useProxy && !options.preserveDashRetries) recoveryAttempts = 0;
+    if (hls){ hls.destroy(); hls=null; }
+    resetDashPlayer();
+    if (!options.preserveDashRetries) dashRetryCount = 0;
+    const useProxy = options.useProxy === true;
+    const url = getPlaybackUrl(src, useProxy);
+    if (!url){ showError('No stream URL.'); return; }
+
+    video._hmPlaybackSource = src;
+    video._hmPlaybackViaProxy = useProxy || Boolean(src.proxyPreferred);
+    video.onerror = handleVideoError;
+
+    if (isDashSource(src, url)) {
+        if (!window.dashjs || !window.dashjs.MediaPlayer) {
+            console.error('[DASH] dash.js did not load');
+            showError('DASH player failed to load.');
+            return;
+        }
+
+        const headerName = src.signHeaderKey || 'X-MB-Token';
+        const headerValue = src.signCookie || '';
+        dashPlayer = window.dashjs.MediaPlayer().create();
+        try {
+            dashPlayer.updateSettings({
+                streaming: {
+                    retryAttempts: {
+                        MPD: 2,
+                        InitializationSegment: 3,
+                        IndexSegment: 3,
+                        MediaSegment: 3,
+                        BitstreamSwitchingSegment: 3
+                    },
+                    retryIntervals: {
+                        MPD: 800,
+                        InitializationSegment: 800,
+                        IndexSegment: 800,
+                        MediaSegment: 1000,
+                        BitstreamSwitchingSegment: 1000
+                    }
+                }
+            });
+        } catch (e) {
+            console.warn('[DASH] Retry settings unavailable', e);
+        }
+        if (headerValue) {
+            dashPlayer.extend('RequestModifier', function() {
+                return {
+                    modifyRequestURL: function(requestUrl) { return requestUrl; },
+                    modifyRequestHeader: function(xhr) {
+                        xhr.setRequestHeader(headerName, headerValue);
+                        return xhr;
+                    }
+                };
+            }, true);
+        }
+        dashPlayer.on(window.dashjs.MediaPlayer.events.STREAM_INITIALIZED, function() {
+            // DASH exposes adaptive representations only after the MPD is ready.
+            // Replace the source-level picker with the real 480p/720p/1080p tracks.
+            activeDashQuality = -1;
+            updateDashQualityUI();
+        });
+        dashPlayer.on(window.dashjs.MediaPlayer.events.ERROR, function(event) {
+            console.error('[DASH] playback error', event);
+            if (event && event.error && event.error.fatal) scheduleDashRetry(src, url);
+        });
+        dashPlayer.initialize(video, url, true);
+        console.log('[DASH] Initialized signed DASH playback');
+        return;
+    }
+
+    if (Hls.isSupported() && (url.includes('.m3u8')||src.format==='m3u8')) {
+        hls = new Hls({ enableWorker:true, lowLatencyMode:false });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, ()=>{ video.play().catch(()=>{}); });
+        hls.on(Hls.Events.ERROR, (e,d)=>{ if(d.fatal) handleVideoError(); });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl') && url.includes('.m3u8')) {
+        video.src=url; video.play().catch(()=>{});
+    } else {
+        video.src=url; video.play().catch(()=>{});
+    }
+}
+
+async function handleVideoError() {
+    if (recoveryInFlight) return;
+    recoveryInFlight = true;
+    try {
+        const src = video.src || '';
+        const failedSource = video._hmPlaybackSource || allSources[currentSrcIdx];
+
+        // Refresh an expired signed URL only once per selected source.
+        if (isUrlExpired(src) && currentMovieId && recoveryAttempts < 1) {
+            recoveryAttempts++;
+            const resumeAt = video.currentTime;
+            try {
+                const fresh = await fetchSources(currentMovieId, currentSeason, currentEpisode);
+                const freshSource = fresh.sources[currentSrcIdx] || fresh.sources[0];
+                if (freshSource) {
+                    loadStream(freshSource, { preserveDashRetries: true });
+                    video.addEventListener('canplay', () => {
+                        video.currentTime = resumeAt;
+                        video.play().catch(() => {});
+                    }, { once: true });
+                    return;
+                }
+            } catch (e) {
+                console.warn('[REFRESH] Source refresh failed:', e.message);
+            }
+        }
+
+        // A direct CDN request can fail because of browser CORS. Try the VPS
+        // proxy once for MP4/HLS; DASH remains direct because relative segment
+        // URLs would not be rewritten by the simple proxy.
+        const canUseProxyFallback = failedSource &&
+            !video._hmPlaybackViaProxy &&
+            !isDashSource(failedSource, src) &&
+            Boolean(failedSource.streamUrl || failedSource.proxyUrl) &&
+            recoveryAttempts < 2;
+        if (canUseProxyFallback) {
+            recoveryAttempts++;
+            console.warn('[PLAYBACK] Direct CDN load failed; trying VPS proxy once');
+            loadStream(failedSource, { useProxy: true });
+            return;
+        }
+
+        currentSrcIdx++;
+        if (currentSrcIdx < allSources.length) {
+            loadStream(allSources[currentSrcIdx]);
+            updateQualityUI(allSources, currentSrcIdx);
+        } else {
+            showError('Stream unavailable. Try going back and reopening.');
+        }
+    } finally {
+        recoveryInFlight = false;
+    }
+}
+
+// ── Stall recovery (12 s) ───────────────────────────────────────────────────
+video.addEventListener('timeupdate', ()=>{ lastProgressTime=Date.now(); clearStall(); });
+function clearStall(){ if(stallTimer){clearTimeout(stallTimer);stallTimer=null;} }
+function scheduleStall(){
+    clearStall();
+    stallTimer = setTimeout(()=>{
+        if (video.paused||video.ended) return;
+        if (Date.now()-lastProgressTime<12000) return;
+        const at = video.currentTime;
+        video.load();
+        video.addEventListener('canplay',()=>{ video.currentTime=at; video.play().catch(()=>{}); },{once:true});
+    }, 12000);
+}
+video.addEventListener('waiting',  scheduleStall);
+video.addEventListener('stalled',  scheduleStall);
+video.addEventListener('playing',  clearStall);
+
+// ── Video events ────────────────────────────────────────────────────────────
+video.addEventListener('play',    ()=>{ ppBtn.innerHTML='<i class="fas fa-pause"></i>'; if(bigPlay) bigPlay.style.display='none'; });
+video.addEventListener('pause',   ()=>{ ppBtn.innerHTML='<i class="fas fa-play"></i>'; if(bigPlay&&!video.ended) bigPlay.style.display='flex'; savePosition(); });
+// Spinner: only show after user has started playback (mirrors old modal)
+function showSpinner() {
+    spinner.style.display = 'block';
+    if (bigPlay) bigPlay.style.display = 'none';
+}
+function hideSpinner() {
+    spinner.style.display = 'none';
+    if (bigPlay && video.paused && !video.ended) bigPlay.style.display = 'flex';
+}
+video.addEventListener('loadstart', showSpinner);
+video.addEventListener('waiting',   showSpinner);
+video.addEventListener('stalled',   showSpinner);
+video.addEventListener('seeking',   showSpinner);
+video.addEventListener('playing',   hideSpinner);
+video.addEventListener('canplay',   hideSpinner);
+video.addEventListener('seeked',    hideSpinner);
+video.addEventListener('pause',     hideSpinner);
+video.addEventListener('error',     hideSpinner);
+video.addEventListener('ended',   onEnded);
+video.addEventListener('timeupdate', ()=>{
+    if (!video.duration||isSeeking) return;
+    const pct = video.currentTime/video.duration*100;
+    progressBar.style.width = pct+'%';
+    timeDisplay.textContent = fmt(video.currentTime)+' / '+fmt(video.duration);
+    if (video.buffered.length) {
+        bufferedBar.style.width = (video.buffered.end(video.buffered.length-1)/video.duration*100)+'%';
+    }
+    // Save every 5s
+    if (!video._lastSave || Date.now()-video._lastSave>5000) { video._lastSave=Date.now(); savePosition(); }
+});
+video.addEventListener('enterpictureinpicture', ()=>{ isPiPActive=true; document.getElementById('pipBtn').classList.add('active'); });
+video.addEventListener('leavepictureinpicture',  ()=>{ isPiPActive=false; document.getElementById('pipBtn').classList.remove('active'); });
+
+// ── Controls visibility ─────────────────────────────────────────────────────
+let _ctrlTimer = null;
+container.addEventListener('mousemove', ()=>{ controls.style.opacity='1'; clearTimeout(_ctrlTimer); });
+container.addEventListener('click', e=>{
+    if (e.target.closest('.custom-controls')||e.target.closest('.big-play-btn')) return;
+    if (e.target.closest('.gesture-indicator')) return;
+    togglePlay();
+    controls.style.opacity='1';
+    clearTimeout(_ctrlTimer);
+});
+container.addEventListener('touchend', e=>{
+    if (e.target.closest('.custom-controls')||e.target.closest('.big-play-btn')) return;
+    if (e.target.closest('.gesture-indicator')) return;
+    // Tap screen = toggle play/pause (like old modal)
+    togglePlay();
+    // Briefly flash controls so user sees the state change
+    controls.style.opacity='1';
+    clearTimeout(_ctrlTimer);
+});
+controls.addEventListener('mouseenter', ()=>{ clearTimeout(_ctrlTimer); controls.style.opacity='1'; });
+
+// ── Progress bar / seek ─────────────────────────────────────────────────────
+const progContainer = document.getElementById('progressContainer');
+let seekHideTimer = null;
+function doSeek(clientX) {
+    if (!video.duration) return;
+    const rect = progContainer.getBoundingClientRect();
+    const pct  = Math.max(0, Math.min(1,(clientX-rect.left)/rect.width));
+    video.currentTime = pct * video.duration;
+    progressBar.style.width = (pct*100)+'%';
+    seekToast.textContent = fmt(video.currentTime)+' / '+fmt(video.duration);
+    seekToast.classList.add('show');
+    clearTimeout(seekHideTimer);
+    seekHideTimer = setTimeout(()=>seekToast.classList.remove('show'),600);
+}
+progContainer.addEventListener('click', e=>doSeek(e.clientX));
+progContainer.addEventListener('mousedown', e=>{ isSeeking=true; doSeek(e.clientX); });
+document.addEventListener('mousemove',  e=>{ if(isSeeking) doSeek(e.clientX); });
+document.addEventListener('mouseup',    ()=>{ isSeeking=false; seekToast.classList.remove('show'); });
+progContainer.addEventListener('touchstart', e=>{ isSeeking=true; doSeek(e.touches[0].clientX); },{passive:true});
+document.addEventListener('touchmove',  e=>{ if(isSeeking) doSeek(e.touches[0].clientX); },{passive:true});
+document.addEventListener('touchend',   ()=>{ isSeeking=false; seekToast.classList.remove('show'); });
+
+// ── Playback controls ───────────────────────────────────────────────────────
+function doPlay()      { showSpinner(); video.play().catch(()=>{}); }
+function togglePlay()  { video.paused ? video.play().catch(()=>{}) : video.pause(); }
+function skip(s)       { video.currentTime=Math.max(0,Math.min(video.duration||0,video.currentTime+s)); }
+function updateMuteButton() {
+    const muteBtn = document.getElementById('muteBtn');
+    if (!muteBtn) return;
+    muteBtn.innerHTML = (video.muted || video.volume === 0)
+        ? '<i class="fas fa-volume-mute"></i>'
+        : '<i class="fas fa-volume-up"></i>';
+}
+function toggleMute() {
+    video.muted = !video.muted;
+    updateMuteButton();
+}
+function adjustVolume(delta) {
+    const next = Math.max(0, Math.min(1, (Number.isFinite(video.volume) ? video.volume : 1) + delta));
+    video.volume = next;
+    if (next > 0 && video.muted) video.muted = false;
+    updateMuteButton();
+    showQuickMsg('Volume ' + Math.round(next * 100) + '%', 'info');
+}
+function toggleKeyboardSubtitles() {
+    const tracks = Array.from(video.textTracks || []);
+    if (!tracks.length) {
+        showQuickMsg('No subtitles available', 'error');
+        return;
+    }
+    const showing = tracks.find(track => track.mode === 'showing');
+    if (showing) {
+        selectSubtitle('off');
+        showQuickMsg('Subtitles off', 'info');
+        return;
+    }
+    const first = tracks.find(track => track.language || track.label) || tracks[0];
+    const language = first.language || first.srclang || 'en';
+    selectSubtitle(language);
+    showQuickMsg('Subtitles on', 'info');
+}
+function showKeyboardHelp() {
+    const existing = document.getElementById('keyboardShortcutsHelp');
+    if (existing) {
+        existing.remove();
+        return;
+    }
+    const overlay = document.createElement('div');
+    overlay.id = 'keyboardShortcutsHelp';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Keyboard shortcuts');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);';
+    const panel = document.createElement('div');
+    panel.style.cssText = 'width:min(420px,100%);max-height:calc(100vh - 40px);overflow:auto;background:#17171b;color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:18px;box-shadow:0 18px 60px rgba(0,0,0,.5);font-family:inherit;';
+    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:16px;font-weight:700;">Keyboard shortcuts <button type="button" aria-label="Close keyboard shortcuts" style="border:0;background:transparent;color:#aaa;font-size:24px;line-height:1;cursor:pointer;padding:0 4px;">&times;</button></div>' +
+        '<div style="display:grid;grid-template-columns:90px 1fr;gap:9px 12px;font-size:13px;line-height:1.35;">' +
+        '<kbd>Space / K</kbd><span>Play / pause</span>' +
+        '<kbd>&larr; / &rarr;</kbd><span>Rewind / forward 5 seconds</span>' +
+        '<kbd>J / L</kbd><span>Rewind / forward 10 seconds</span>' +
+        '<kbd>&uarr; / &darr;</kbd><span>Increase / decrease volume</span>' +
+        '<kbd>M</kbd><span>Mute / unmute</span>' +
+        '<kbd>F</kbd><span>Toggle fullscreen</span>' +
+        '<kbd>C</kbd><span>Toggle subtitles</span>' +
+        '<kbd>0&ndash;9</kbd><span>Jump to that percentage</span>' +
+        '<kbd>Home / End</kbd><span>Go to start / end</span>' +
+        '<kbd>&lt; / &gt;</kbd><span>Decrease / increase speed</span>' +
+        '<kbd>Esc</kbd><span>Exit fullscreen or close this guide</span>' +
+        '</div>';
+    const style = document.createElement('style');
+    style.textContent = '#keyboardShortcutsHelp kbd{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:2px 6px;border:1px solid rgba(255,255,255,.2);border-bottom-width:2px;border-radius:5px;background:rgba(255,255,255,.08);color:#fff;font:600 11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;}#keyboardShortcutsHelp span{color:rgba(255,255,255,.78);align-self:center;}';
+    panel.appendChild(style);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const closeButton = panel.querySelector('button');
+    const close = () => overlay.remove();
+    closeButton.addEventListener('click', close);
+    overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+}
+function playerKeyboardAllowed(event) {
+    if (document.hidden) return false;
+    if (window.innerWidth <= 768 && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window)) return false;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target && (target.matches('input,textarea,select,[contenteditable="true"]') || target.closest('button,a,[role="button"]'))) return false;
+    return Boolean(video && container && (video.readyState > 0 || video.currentSrc || video.src || document.fullscreenElement === container));
+}
+document.addEventListener('keydown', function handlePlayerKeyboard(event) {
+    if (!playerKeyboardAllowed(event)) return;
+    const key = event.key;
+    const lower = key.toLowerCase();
+    if (key === '?' || (key === '/' && event.shiftKey)) {
+        event.preventDefault();
+        showKeyboardHelp();
+        return;
+    }
+    if (key === 'Escape') {
+        if (document.getElementById('keyboardShortcutsHelp')) {
+            event.preventDefault();
+            document.getElementById('keyboardShortcutsHelp').remove();
+        } else if (document.fullscreenElement === container) {
+            event.preventDefault();
+            toggleFullscreen();
+        }
+        return;
+    }
+    const digit = /^[0-9]$/.test(key);
+    const handled = key === ' ' || event.code === 'Space' || ['k','arrowleft','arrowright','arrowup','arrowdown','j','l','m','f','c','home','end','<','>'].includes(lower) || digit;
+    if (!handled) return;
+    event.preventDefault();
+    if (key === ' ' || event.code === 'Space' || lower === 'k') {
+        togglePlay();
+    } else if (lower === 'arrowleft') {
+        skip(-5); showQuickMsg('-5 seconds', 'info');
+    } else if (lower === 'arrowright') {
+        skip(5); showQuickMsg('+5 seconds', 'info');
+    } else if (lower === 'j') {
+        skip(-10); showQuickMsg('-10 seconds', 'info');
+    } else if (lower === 'l') {
+        skip(10); showQuickMsg('+10 seconds', 'info');
+    } else if (lower === 'arrowup') {
+        adjustVolume(0.05);
+    } else if (lower === 'arrowdown') {
+        adjustVolume(-0.05);
+    } else if (lower === 'm') {
+        toggleMute();
+        showQuickMsg(video.muted ? 'Muted' : 'Unmuted', 'info');
+    } else if (lower === 'f') {
+        toggleFullscreen();
+    } else if (lower === 'c') {
+        toggleKeyboardSubtitles();
+    } else if (digit) {
+        if (video.duration) video.currentTime = video.duration * (Number(key) / 10);
+    } else if (key === '<' || key === '>') {
+        const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+        const currentIndex = speeds.indexOf(video.playbackRate);
+        const nextIndex = Math.max(0, Math.min(speeds.length - 1, currentIndex + (key === '>' ? 1 : -1)));
+        setPlaybackSpeed(speeds[nextIndex]);
+        showQuickMsg('Speed ' + speeds[nextIndex] + 'x', 'info');
+    } else if (lower === 'home') {
+        video.currentTime = 0;
+    } else if (lower === 'end' && video.duration) {
+        video.currentTime = video.duration;
+    }
+});
+
+// ── Fullscreen ──────────────────────────────────────────────────────────────
+function toggleFullscreen() {
+    const fsBtn = document.getElementById('fullscreenBtn');
+    if (!document.fullscreenElement) {
+        (container.requestFullscreen||container.webkitRequestFullscreen||container.mozRequestFullScreen).call(container).catch(()=>{});
+        fsBtn.innerHTML='<i class="fas fa-compress"></i>';
+    } else {
+        (document.exitFullscreen||document.webkitExitFullscreen).call(document).catch(()=>{});
+        fsBtn.innerHTML='<i class="fas fa-expand"></i>';
+    }
+}
+document.addEventListener('fullscreenchange', ()=>{
+    if (!document.fullscreenElement)
+        document.getElementById('fullscreenBtn').innerHTML='<i class="fas fa-expand"></i>';
+});
+
+// ── 4-level Zoom ────────────────────────────────────────────────────────────
+function cycleZoom() {
+    zoomLevel = (zoomLevel+1) % 4;
+    const zBtn = document.getElementById('zoomBtn');
+    if (zoomLevel===0) {
+        video.style.objectFit='contain'; video.style.transform='scale(1)';
+        zBtn.classList.remove('active'); zBtn.innerHTML='<i class="fas fa-expand-alt"></i>';
+    } else if (zoomLevel===1) {
+        video.style.objectFit='fill'; video.style.transform='scale(1)';
+        zBtn.classList.add('active'); zBtn.innerHTML='<i class="fas fa-search-plus"></i>';
+    } else if (zoomLevel===2) {
+        video.style.objectFit='fill'; video.style.transform='scale(1.05)';
+        zBtn.classList.add('active'); zBtn.innerHTML='<i class="fas fa-search-plus"></i>';
+    } else {
+        video.style.objectFit='fill'; video.style.transform='scale(1.15)';
+        zBtn.classList.add('active'); zBtn.innerHTML='<i class="fas fa-search-minus"></i>';
+    }
+}
+
+// ── PiP ──────────────────────────────────────────────────────────────────────
+function togglePip() {
+    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(()=>{});
+    else if (document.pictureInPictureEnabled) video.requestPictureInPicture().catch(()=>{});
+}
+
+// ── Speed ────────────────────────────────────────────────────────────────────
+function setPlaybackSpeed(v) {
+    video.playbackRate=v;
+    document.getElementById('speedLabel').textContent=v+'x';
+    document.querySelectorAll('.speed-option').forEach(o=>o.classList.toggle('active',parseFloat(o.dataset.speed)===v));
+    document.getElementById('speedDropdown').style.display='none';
+}
+function toggleSpeedDropdown(e) {
+    e.stopPropagation();
+    const wasOpen=document.getElementById('speedDropdown').style.display==='block';
+    closeAllPlayerPopups();
+    const dd=document.getElementById('speedDropdown');
+    dd.style.display=wasOpen?'none':'block';
+}
+
+// ── Subtitle ─────────────────────────────────────────────────────────────────
+function toggleSubtitleDropdown(e) {
+    e.stopPropagation();
+    const dd=document.getElementById('subtitleDropdown');
+    const wasOpen=dd.style.display==='block';
+    closeAllPlayerPopups();
+    if (!wasOpen) {
+        dd.style.display='block';
+        dd.classList.add('player-floating-subtitle');
+        requestAnimationFrame(()=>positionPlayerPopup(dd, document.getElementById('subtitleBtn'), true));
+    }
+}
+function selectSubtitle(lang) {
+    const normalized=String(lang||'off').toLowerCase();
+    const dd=document.getElementById('subtitleDropdown');
+    dd.style.display='none';
+    dd.classList.remove('player-floating-subtitle');
+    document.querySelectorAll('.subtitle-option').forEach(o=>o.classList.remove('active'));
+    Array.from(video.textTracks).forEach(t=>{
+        const trackLang=String(t.language||'').toLowerCase();
+        t.mode=(normalized!=='off'&&trackLang===normalized)?'showing':'hidden';
+    });
+    const el=Array.from(document.querySelectorAll('.subtitle-option'))
+        .find(option=>String(option.dataset.lang||'').toLowerCase()===normalized);
+    if (el) el.classList.add('active');
+    document.getElementById('subtitleBtn').classList.toggle('active', normalized!=='off');
+}
+function loadCaptionTracks(captions) {
+    Array.from(video.querySelectorAll('track')).forEach(t=>t.remove());
+    const list=document.getElementById('subtitleOptionsList');
+    list.innerHTML='';
+    const usable=(Array.isArray(captions)?captions:[]).map(c=>({
+        ...c,
+        lan:String(c.lan||c.language||'en').toLowerCase(),
+        lanName:c.lanName||c.languageName||c.label||c.language||'Subtitle',
+        url:c.url||c.file||c.src||''
+    })).filter(c=>c.url);
+    if (!usable.length) {
+        const empty=document.createElement('div');
+        empty.className='subtitle-option subtitle-empty';
+        empty.textContent='No subtitles available';
+        list.appendChild(empty);
+        document.getElementById('subtitleBtn').classList.remove('active');
+        return;
+    }
+    usable.forEach((c,i)=>{
+        const track=document.createElement('track');
+        track.kind='subtitles'; track.src=c.url;
+        track.srclang=c.lan;
+        track.label=c.lanName;
+        if(i===0) track.default=true;
+        video.appendChild(track);
+        if (track.track) track.track.mode='hidden';
+        const div=document.createElement('div');
+        div.className='subtitle-option'; div.dataset.lang=track.srclang;
+        div.onclick=()=>selectSubtitle(track.srclang);
+        div.innerHTML='<i class="fas fa-comment-dots"></i> '+track.label;
+        list.appendChild(div);
+    });
+    requestAnimationFrame(()=>selectSubtitle(usable[0].lan));
+}
+
+// ── Dubs ──────────────────────────────────────────────────────────────────────
+function showDubUnavailable(message='No alternate audio available') {
+    const cont=document.getElementById('dubSelectorContainer');
+    const list=document.getElementById('dubOptionsList');
+    const btn=document.getElementById('dubBtn');
+    if (!cont||!list) return;
+    currentDubsData={hasDubs:false,original:null,dubs:[]};
+    list.innerHTML='';
+    const empty=document.createElement('div');
+    empty.className='dub-option dub-empty';
+    empty.textContent=message;
+    list.appendChild(empty);
+    cont.style.display='block';
+    if (btn) {
+        btn.classList.add('unavailable');
+        btn.title='Audio language — none available for this title';
+        btn.setAttribute('aria-label','Audio language unavailable');
+    }
+}
+function toggleDubPanel(e) {
+    e.stopPropagation();
+    const p=document.getElementById('dubPanel');
+    const wasOpen=p.style.display==='block';
+    closeAllPlayerPopups();
+    if (!wasOpen) {
+        p.style.display='block';
+        p.classList.add('player-floating-dub');
+    }
+}
+async function loadDubs(id, detailPath) {
+    const cont=document.getElementById('dubSelectorContainer');
+    if(cont) cont.style.display='block';
+    try {
+        const dubUrl='/api/dubs/'+id+(detailPath?'?detailPath='+encodeURIComponent(detailPath):'');
+        const d=await fetchAPI(dubUrl);
+        const data=d?.data||{};
+        if (d.status==='success' && (data.hasDubs || (Array.isArray(data.dubs)&&data.dubs.length))) {
+            currentDubsData={
+                ...data,
+                dubs:Array.isArray(data.dubs)?data.dubs:[],
+                original:data.original||null
+            };
+            renderDubOptions(id);
+        } else showDubUnavailable();
+    } catch(e) { showDubUnavailable('Audio languages unavailable'); }
+}
+function renderDubOptions(activeId) {
+    const cont=document.getElementById('dubSelectorContainer');
+    const list=document.getElementById('dubOptionsList');
+    const btn=document.getElementById('dubBtn');
+    if (!cont||!list) return;
+    const all=[];
+    if (currentDubsData.original) all.push(currentDubsData.original);
+    // The upstream catalog mixes subtitle variants (for example "Arabic sub")
+    // into the dub list. Keep those out of the audio-language picker.
+    (currentDubsData.dubs||[])
+        .filter(d=>!/(^|\s)sub(\s|$)/i.test(String(d.lanName||d.lanCode||"")))
+        .forEach(d=>all.push(d));
+    if (all.length<=1){ showDubUnavailable(); return; }
+    list.innerHTML='';
+    if (btn) {
+        btn.classList.remove('unavailable');
+        btn.title='Audio language';
+        btn.setAttribute('aria-label','Audio language');
+    }
+    all.forEach(d=>{
+        const subjectId=String(d.subjectId||'');
+        const div=document.createElement('div');
+        div.className='dub-option'+(subjectId===String(activeId||'')?' dub-active':'');
+        const chk=document.createElement('i');
+        chk.className='fas fa-check dub-check'; div.appendChild(chk);
+        const name=d.lanName||d.lanCode||'Audio';
+        div.appendChild(document.createTextNode(name));
+        div.addEventListener('click',()=>selectDub(subjectId,name,d.detailPath||''));
+        list.appendChild(div);
+    });
+    cont.style.display='block';
+}
+async function selectDub(subjectId, lanName, detailPath) {
+    document.getElementById('dubPanel').style.display='none';
+    document.getElementById('dubPanel').classList.remove('player-floating-dub');
+    if (!subjectId||subjectId===currentMovieId) return;
+    showQuickMsg('Switching to '+lanName+'…','info');
+    try {
+        const [sd, dubCaptions]=await Promise.all([
+            fetchSources(subjectId,currentSeason||0,currentEpisode||0),
+            fetchCaptions(subjectId,currentSeason||0,currentEpisode||0).catch(()=>[])
+        ]);
+        if (!sd||!sd.sources||!sd.sources.length){
+            document.querySelectorAll('.dub-option').forEach(option=>{
+                if (option.textContent.trim()===lanName){
+                    option.classList.add('dub-empty');
+                    option.style.pointerEvents='none';
+                    option.title='No playable source available';
+                    option.textContent=lanName+' — unavailable';
+                }
+            });
+            showQuickMsg('No playable stream for '+lanName,'error');
+            return;
+        }
+        currentMovieId=subjectId;
+        allSources=sd.sources;
+        const pick=sd.sources.find(s=>isDashSource(s,s.directUrl||s.cdnUrl||s.streamUrl))||sd.sources.find(s=>String(s.quality||'').includes('360'))||sd.sources[0];
+        currentSrcIdx=sd.sources.indexOf(pick);
+        updateQualityUI(sd.sources, currentSrcIdx);
+        loadCaptionTracks(dubCaptions.length?dubCaptions:(sd.captions||[]));
+        loadStream(pick);
+        renderDubOptions(subjectId);
+        showQuickMsg('Now playing: '+lanName,'success');
+    } catch(err){ showQuickMsg('Failed to load '+lanName,'error'); }
+}
+// Close dubPanel on outside click
+document.addEventListener('click',e=>{
+    const cont=document.getElementById('dubSelectorContainer');
+    const p=document.getElementById('dubPanel');
+    const sd=document.getElementById('speedDropdown');
+    const sdd=document.getElementById('subtitleDropdown');
+    if (p&&cont&&!cont.contains(e.target)&&p.style.display!=='none') p.style.display='none';
+    if (sd&&!e.target.closest('.speed-selector-container')) sd.style.display='none';
+    if (sdd&&!e.target.closest('.subtitle-selector-container')) sdd.style.display='none';
+});
+
+// ── Quality picker helpers ────────────────────────────────
+function renderQualityItem(list, label, active, onClick) {
+    const item = document.createElement('div');
+    item.className = 'quality-item' + (active ? ' active' : '');
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = 0;
+    item.innerHTML = '<span></span><span class="qi-dot"></span>';
+    item.firstElementChild.textContent = label;
+    item.addEventListener('click', onClick);
+    item.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onClick();
+        }
+    });
+    list.appendChild(item);
+}
+
+function positionPlayerPopup(popup, anchor, preferAbove) {
+    if (!popup || !anchor || popup.style.display==='none') return;
+    popup.style.position='fixed';
+    popup.style.left='auto';
+    popup.style.right='auto';
+    popup.style.bottom='auto';
+    popup.style.transform='none';
+    const rect=anchor.getBoundingClientRect();
+    const pad=8;
+    const gap=8;
+    const width=popup.offsetWidth||180;
+    const height=popup.offsetHeight||160;
+    const maxLeft=Math.max(pad,window.innerWidth-width-pad);
+    const left=Math.min(Math.max(pad,rect.right-width),maxLeft);
+    let top=preferAbove ? rect.top-height-gap : rect.bottom+gap;
+    if (top<pad || (!preferAbove && top+height>window.innerHeight-pad)) {
+        const above=rect.top-height-gap;
+        const below=rect.bottom+gap;
+        top=(above>=pad || below+height>window.innerHeight-pad)?above:below;
+    }
+    top=Math.min(Math.max(pad,top),Math.max(pad,window.innerHeight-height-pad));
+    popup.style.left=Math.round(left)+'px';
+    popup.style.top=Math.round(top)+'px';
+}
+
+function repositionOpenPlayerPopups() {
+    const quality=document.getElementById('qualityPopup');
+    if (quality&&quality.classList.contains('open'))
+        positionPlayerPopup(quality,document.getElementById('qualityBtn'),false);
+    const subtitle=document.getElementById('subtitleDropdown');
+    if (subtitle&&subtitle.style.display==='block')
+        positionPlayerPopup(subtitle,document.getElementById('subtitleBtn'),true);
+}
+window.addEventListener('resize',repositionOpenPlayerPopups,{passive:true});
+window.addEventListener('scroll',repositionOpenPlayerPopups,{passive:true,capture:true});
+
+function updateDashQualityUI() {
+    const list = document.getElementById('qualityPopupList');
+    const lbl = document.getElementById('qualityBtnLabel');
+    if (!list || !dashPlayer || typeof dashPlayer.getBitrateInfoListFor !== 'function') return;
+
+    const representations = dashPlayer.getBitrateInfoListFor('video') || [];
+    const seen = new Set();
+    dashQualityOptions = representations
+        .slice()
+        .sort((a,b) => (Number(b.height)||0) - (Number(a.height)||0) || (Number(b.bitrate)||0) - (Number(a.bitrate)||0))
+        .map((info, position) => {
+            const height = Number(info.height) || 0;
+            const bitrate = Number(info.bitrate) || 0;
+            const label = height ? height + 'p' : (bitrate ? Math.round(bitrate / 1000) + ' kbps' : 'Track ' + (position + 1));
+            const key = height ? 'height:' + height : 'bitrate:' + bitrate;
+            if (seen.has(key)) return null;
+            seen.add(key);
+            return {
+                qualityIndex: Number.isFinite(Number(info.qualityIndex)) ? Number(info.qualityIndex) : position,
+                label
+            };
+        })
+        .filter(Boolean);
+
+    list.innerHTML = '';
+    renderQualityItem(list, 'Auto', activeDashQuality === -1, () => switchDashQuality(-1));
+    dashQualityOptions.forEach(option => {
+        renderQualityItem(list, option.label, activeDashQuality === option.qualityIndex,
+            () => switchDashQuality(option.qualityIndex));
+    });
+    if (lbl) lbl.textContent = activeDashQuality === -1
+        ? 'Auto'
+        : (dashQualityOptions.find(o => o.qualityIndex === activeDashQuality)?.label || 'Quality');
+}
+
+function updateQualityUI(sources, activeIdx) {
+    const list = document.getElementById('qualityPopupList');
+    const lbl  = document.getElementById('qualityBtnLabel');
+    if (!list) return;
+    dashQualityOptions = [];
+    list.innerHTML = '';
+
+    const visible = [];
+    const byQuality = new Map();
+    sources.forEach((source, index) => {
+        const url = source?.streamUrl||source?.proxyUrl||source?.directUrl||source?.cdnUrl||source?.url||'';
+        const isDash = isDashSource(source, url);
+        const label = sourceQualityLabel(source, index);
+        const key = isDash ? 'dash' : 'mp4:' + label;
+        const previous = byQuality.get(key);
+        // Keep one entry per quality, but prefer the currently active duplicate.
+        if (!previous || index === activeIdx) {
+            const entry = { index, label };
+            byQuality.set(key, entry);
+            if (previous) visible[visible.indexOf(previous)] = entry;
+            else visible.push(entry);
+        }
+    });
+
+    visible.forEach(entry => {
+        renderQualityItem(list, entry.label, entry.index === activeIdx,
+            () => switchQuality(entry.index));
+    });
+    if (lbl && sources[activeIdx]) lbl.textContent = sourceQualityLabel(sources[activeIdx], activeIdx);
+}
+function toggleQualityPopup(e) {
+    e.stopPropagation();
+    const btn=document.getElementById('qualityBtn');
+    const pop=document.getElementById('qualityPopup');
+    const isOpen=pop.classList.contains('open');
+    closeAllPlayerPopups();
+    if (!isOpen) {
+        pop.classList.add('open');
+        btn.classList.add('open');
+        requestAnimationFrame(()=>positionPlayerPopup(pop,btn,false));
+    }
+}
+function closeAllPlayerPopups() {
+    document.querySelectorAll('.quality-popup').forEach(p=>p.classList.remove('open'));
+    document.querySelectorAll('.quality-btn').forEach(b=>b.classList.remove('open'));
+    const subtitle=document.getElementById('subtitleDropdown');
+    if (subtitle) {
+        subtitle.style.display='none';
+        subtitle.classList.remove('player-floating-subtitle');
+    }
+    const speed=document.getElementById('speedDropdown');
+    if (speed) speed.style.display='none';
+    const dub=document.getElementById('dubPanel');
+    if (dub) {
+        dub.style.display='none';
+        dub.classList.remove('player-floating-dub');
+    }
+}
+document.addEventListener('click', function(e){
+    if (!e.target.closest('.quality-picker-wrap')) closeAllPlayerPopups();
+});
+// ── Quality switch ────────────────────────────────────────────
+function switchDashQuality(qualityIndex) {
+    if (!dashPlayer) return;
+    const index = Number(qualityIndex);
+    try {
+        if (index < 0) {
+            dashPlayer.setAutoSwitchQualityFor('video', true);
+            activeDashQuality = -1;
+        } else {
+            dashPlayer.setAutoSwitchQualityFor('video', false);
+            dashPlayer.setQualityFor('video', index);
+            activeDashQuality = index;
+        }
+        updateDashQualityUI();
+        closeAllPlayerPopups();
+    } catch (error) {
+        console.warn('[DASH] Quality switch failed:', error);
+        showQuickMsg('Quality change unavailable', 'error');
+    }
+}
+
+function switchQuality(idx) {
+    if (idx==='' || idx===undefined) return;
+    currentSrcIdx=parseInt(idx);
+    const pos=video.currentTime; const paused=video.paused;
+    updateQualityUI(allSources, currentSrcIdx);
+    closeAllPlayerPopups();
+    loadStream(allSources[currentSrcIdx]);
+    video.addEventListener('playing',()=>{ if(pos>0) video.currentTime=pos; if(!paused) video.play().catch(()=>{}); },{once:true});
+}
+
+// ── Rotate / Landscape lock ───────────────────────────────────────────────────
+function toggleLandscape() {
+    const btn=document.getElementById('rotateBtn');
+    isForcedLandscape=!isForcedLandscape;
+    btn.classList.toggle('active',isForcedLandscape);
+    if (isForcedLandscape) {
+        const fs=container.requestFullscreen||container.webkitRequestFullscreen||container.mozRequestFullScreen;
+        const fsP=fs ? fs.call(container) : Promise.resolve();
+        fsP.then(()=>{
+            if (screen.orientation&&screen.orientation.lock)
+                screen.orientation.lock('landscape').catch(()=>{});
+        }).catch(()=>{});
+        showQuickMsg('Landscape mode','info');
+    } else {
+        (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);
+        if (screen.orientation&&screen.orientation.unlock) screen.orientation.unlock();
+        showQuickMsg('Portrait mode','info');
+    }
+}
+
+// ── Episode navigation ────────────────────────────────────────────────────────
+function goPrevEpisode() { if(currentEpIdx>0){ currentEpIdx--; goToEpisode(episodeList[currentEpIdx]); } }
+function goNextEpisode() { if(currentEpIdx<episodeList.length-1){ currentEpIdx++; goToEpisode(episodeList[currentEpIdx]); } }
+function goToEpisode(ep) { window.location.href='/watch/'+currentMovieId+'?season='+ep.season+'&episode='+ep.episode; }
+document.getElementById('prevBtn').addEventListener('click', e=>{ e.stopPropagation(); goPrevEpisode(); });
+document.getElementById('nextBtn').addEventListener('click', e=>{ e.stopPropagation(); goNextEpisode(); });
+
+// ── Autoplay next episode ─────────────────────────────────────────────────────
+function onEnded() {
+    ppBtn.innerHTML='<i class="fas fa-play"></i>';
+    if (episodeList.length>1 && currentEpIdx<episodeList.length-1) showAutoPlayToast();
+}
+function showAutoPlayToast() {
+    const toast=document.createElement('div');
+    toast.id='apToast';
+    toast.style.cssText='position:fixed;bottom:100px;right:20px;background:rgba(0,0,0,.9);color:#fff;padding:18px;border-radius:12px;z-index:10000;border-left:4px solid #e50914;box-shadow:0 8px 30px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:10px;min-width:240px;animation:slideInRight .4s ease-out;';
+    const next=episodeList[currentEpIdx+1];
+    toast.innerHTML=`
+        <div style="font-weight:700;font-size:.85rem;color:#888">Up Next in 5s</div>
+        <div style="font-weight:800;font-size:1rem">Episode ${next.episode}</div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+            <button onclick="document.getElementById('apToast').remove();clearTimeout(autoPlayTimer)" style="flex:1;padding:8px;border-radius:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;cursor:pointer;font-size:.8rem">Cancel</button>
+            <button onclick="clearTimeout(autoPlayTimer);goToEpisode(episodeList[currentEpIdx+1]);document.getElementById('apToast').remove()" style="flex:1;padding:8px;border-radius:8px;background:#e50914;border:none;color:#fff;cursor:pointer;font-size:.8rem;font-weight:700">Play Now</button>
+        </div>
+        <div id="apProg" style="height:3px;background:#e50914;width:100%;transition:width 5s linear"></div>`;
+    document.body.appendChild(toast);
+    setTimeout(()=>{ const p=document.getElementById('apProg'); if(p) p.style.width='0%'; },100);
+    autoPlayTimer=setTimeout(()=>{
+        const t=document.getElementById('apToast'); if(t) t.remove();
+        goToEpisode(episodeList[currentEpIdx+1]);
+    },5000);
+}
+
+// ── Touch gestures: left=volume, right=brightness ────────────────────────────
+let gestureType=null, gestureStartY=0, gestureStartX=0, isGesturing=false, gestureHideTimer=null;
+const videoWrapper=document.querySelector('.video-wrapper');
+videoWrapper.addEventListener('touchstart',e=>{
+    if(e.target.closest('.custom-controls')||e.target.closest('.big-play-btn')) return;
+    const t=e.touches[0];
+    gestureStartY=t.clientY; gestureStartX=t.clientX;
+    const rect=videoWrapper.getBoundingClientRect();
+    gestureType=(t.clientX-rect.left)>rect.width/2?'brightness':'volume';
+    gestureIcon.innerHTML=gestureType==='brightness'?'<i class="fas fa-sun"></i>':'<i class="fas fa-volume-up"></i>';
+},{passive:true});
+videoWrapper.addEventListener('touchmove',e=>{
+    if (!gestureType) return;
+    const t=e.touches[0];
+    const dy=gestureStartY-t.clientY;
+    const dx=Math.abs(t.clientX-gestureStartX);
+    if (dx>30&&!isGesturing) return;
+    if (Math.abs(dy)>15) {
+        isGesturing=true; e.preventDefault();
+        const sens=0.005;
+        if (gestureType==='brightness') {
+            videoBrightness=Math.max(.1,Math.min(1,videoBrightness+(dy*sens)));
+            video.style.filter=`brightness(${videoBrightness})`;
+            const pct=Math.round(videoBrightness*100);
+            gestureBarFill.style.width=pct+'%'; gestureBarFill.style.background='#FFD700';
+            gestureValue.textContent=pct+'%';
+        } else {
+            const vol=Math.max(0,Math.min(1,video.volume+(dy*sens)));
+            video.volume=vol;
+            const pct=Math.round(vol*100);
+            gestureBarFill.style.width=pct+'%'; gestureBarFill.style.background='#3b82f6';
+            gestureValue.textContent=pct+'%';
+            gestureIcon.innerHTML=vol===0?'<i class="fas fa-volume-mute"></i>':vol<.5?'<i class="fas fa-volume-down"></i>':'<i class="fas fa-volume-up"></i>';
+        }
+        gestureEl.classList.add('show'); gestureStartY=t.clientY;
+        clearTimeout(gestureHideTimer);
+    }
+},{passive:false});
+videoWrapper.addEventListener('touchend',()=>{
+    if(isGesturing) gestureHideTimer=setTimeout(()=>gestureEl.classList.remove('show'),500);
+    isGesturing=false; gestureType=null;
+},{passive:true});
+
+// ── Error display ─────────────────────────────────────────────────────────────
+function showError(msg) {
+    spinner.style.display='none';
+    document.getElementById('watchErrorMsg').textContent=msg||'Stream unavailable';
+    document.getElementById('watchError').style.display='block';
+}
+
+// ── Main init ─────────────────────────────────────────────────────────────────
+async function init() {
+    if (!movieId){ showError('Invalid movie.'); return; }
+    document.getElementById('backBtn').href='/movie/'+movieId;
+    document.getElementById('errorBackBtn').href='/movie/'+movieId;
+    spinner.style.display='block';
+
+    const [srcData, infoData] = await Promise.allSettled([
+        fetchSources(movieId, season, episode),
+        fetchAPI('/api/info/'+movieId)
+    ]);
+
+    // ── Sources ──
+    // Movie pages should never use episode parameters. A stale or copied
+    // /watch/<movie>?season=1&episode=1 URL otherwise receives an empty
+    // episode response even though the movie itself has playable sources.
+    let resolvedSrcData = srcData;
+    const infoSubject = infoData.status==='fulfilled' && infoData.value && infoData.value.data && infoData.value.data.subject;
+    const isMovieWithEpisodeParams = infoSubject && Number(infoSubject.subjectType) === 1 && (season > 0 || episode > 0);
+    if (isMovieWithEpisodeParams) {
+        const movieSources = await fetchSources(movieId, 0, 0);
+        if (movieSources.sources.length) {
+            resolvedSrcData = { status: 'fulfilled', value: movieSources };
+            currentSeason = 0;
+            currentEpisode = 0;
+        }
+    }
+
+    if (resolvedSrcData.status==='fulfilled'&&resolvedSrcData.value.sources.length) {
+        const {sources}=resolvedSrcData.value;
+        let captions = resolvedSrcData.value.captions || [];
+        try {
+            // The captions endpoint returns same-origin proxy URLs. Direct
+            // provider caption URLs often fail in mobile browsers because of CORS.
+            const proxiedCaptions = await fetchCaptions(movieId, currentSeason, currentEpisode);
+            if (proxiedCaptions.length) captions = proxiedCaptions;
+        } catch (error) {
+            console.warn('[SUBTITLES] Caption lookup failed:', error.message);
+        }
+        allSources=sources;
+
+        // Prefer the signed DASH source; fall back to browser-compatible MP4.
+        // DASH is the working path when the VPS/CDN rate-limits MP4 requests.
+        const dashIdx=sources.findIndex(s=>isDashSource(s,s.directUrl||s.cdnUrl||s.streamUrl));
+        const mp4Idx=sources.findIndex(s=>!isDashSource(s,s.directUrl||s.cdnUrl||s.streamUrl));
+        const mp4_360Idx=sources.findIndex(s=>!isDashSource(s,s.directUrl||s.cdnUrl||s.streamUrl) && String(s.quality||s.label||'').includes('360'));
+        const preferIdx=dashIdx>=0 ? dashIdx : (mp4_360Idx>=0 ? mp4_360Idx : (mp4Idx>=0 ? mp4Idx : Math.max(0,sources.findIndex(s=>String(s.quality||s.label||'').includes('360')))));
+        currentSrcIdx=preferIdx;
+        updateQualityUI(sources, currentSrcIdx);
+        loadCaptionTracks(captions);
+        restorePosition();
+        loadStream(sources[currentSrcIdx]);
+
+        // Load dubs async — pass detailPath so the endpoint skips an extra info lookup
+        const _dubDp=(infoData.status==='fulfilled'&&infoData.value&&infoData.value.data&&infoData.value.data.subject&&infoData.value.data.subject.detailPath)||null;
+        loadDubs(movieId, _dubDp);
+    } else {
+        showError('No streams found for this title.');
+        return;
+    }
+
+    // ── Movie info ──
+    if (infoData.status==='fulfilled') {
+        const json=infoData.value;
+        const s=json&&json.data&&json.data.subject;
+        if (!s) return;
+
+        const title  = s.name||s.title||titleHint||'Watch Movie';
+        const isTV   = s.subjectType===2;
+
+        document.getElementById('watchTitle').textContent = title+(season?' S'+season+(episode?'E'+episode:''):'');
+        document.title = title+(season?' S'+season+'E'+(episode||1):'')+' - HM CINEMA';
+        if (season) document.getElementById('epLabel').textContent='S'+season+' E'+(episode||1);
+
+        // ── Header: title + meta + download ──
+        const header=document.getElementById('wbHeader');
+        document.getElementById('wbTitle').textContent=title;
+        const metaParts=[];
+        if (s.score||s.rating) metaParts.push(`<span class="wb-rating"><i class="fas fa-star"></i> ${(s.score||s.rating||'').toString().slice(0,3)}</span>`);
+        if (s.year||s.releaseYear) metaParts.push(`<span>${s.year||s.releaseYear}</span>`);
+        if (s.area||s.country) metaParts.push(`<span>${(s.area||s.country||[]).toString().split(',')[0]}</span>`);
+        if (isTV) metaParts.push(`<span>TV Series</span>`);
+        document.getElementById('wbMeta').innerHTML=metaParts.join('<span style="color:#333">·</span>');
+        header.style.display='block';
+
+        // Store for download
+        window._watchTitle  = title;
+        window._watchType   = isTV ? 2 : 1;
+        window._watchId     = movieId;
+        var dlBtnEl = document.getElementById("watchDlBtn");
+        if (dlBtnEl) dlBtnEl.style.display = "";
+
+        if (isTV) {
+            const seasons=(s.resource&&s.resource.seasons)||s.seasons||[];
+            if (seasons.length) {
+                const navEl=document.getElementById('watchEpNav');
+                const grid=document.getElementById('epNavGrid');
+                const tabsEl=document.getElementById('epSeasonTabs');
+
+                // Build season tabs
+                let tabsHtml='';
+                seasons.forEach(sv=>{
+                    const sNum=sv.se||sv.season||1;
+                    const active=sNum===season;
+                    tabsHtml+=`<a class="ep-season-tab${active?' active':''}" href="/watch/${movieId}?season=${sNum}&episode=1&title=${encodeURIComponent(title)}">Season ${sNum}</a>`;
+                });
+                tabsEl.innerHTML=tabsHtml;
+
+                // Build episode grid for current season
+                const curSe=seasons.find(sv=>(sv.se||sv.season)===season)||seasons[0];
+                const epCnt=parseInt(curSe.maxEp||curSe.episodes||curSe.epCount||1);
+                const se=curSe.se||curSe.season||1;
+
+                let epHtml='';
+                for (let ep=1;ep<=epCnt;ep++) {
+                    const cur=(ep===(episode||1)&&se===season);
+                    epHtml+=`<a class="ep-nav-btn${cur?' current':''}" href="/watch/${movieId}?season=${se}&episode=${ep}&title=${encodeURIComponent(title)}">${ep}</a>`;
+                }
+                grid.innerHTML=epHtml;
+                navEl.style.display='block';
+
+                episodeList=[];
+                for(let ep=1;ep<=epCnt;ep++) episodeList.push({season:se,episode:ep});
+                currentEpIdx=Math.max(0,(episode||1)-1);
+
+                if (episodeList.length>1) {
+                    if (currentEpIdx>0) document.getElementById('prevBtn').style.display='';
+                    if (currentEpIdx<episodeList.length-1) document.getElementById('nextBtn').style.display='';
+                }
+            }
+        }
+    }
+}
+
+init();
+
+
+/* == Watch page download == */
+function startWatchDownload() {
+    var params  = new URLSearchParams(location.search);
+    var se      = parseInt(params.get('season')  || '0');
+    var ep      = parseInt(params.get('episode') || '0');
+    var id      = window._watchId || movieId;
+    var title   = window._watchTitle || document.title;
+    var subType = window._watchType  || 1;
+    watchDownloadContent(id, subType, title, se, ep);
+}
+function dedupeDownloadSources(sources) {
+    var bestByQuality = new Map();
+    sources.forEach(function(source, index){
+        var label = sourceQualityLabel(source, index);
+        var key = label.trim().toLowerCase().replace(/\s+/g, ' ');
+        var score = (source.downloadUrl ? 8 : 0) +
+            (source.directUrl ? 4 : 0) +
+            (source.url ? 2 : 0) +
+            (source.streamUrl ? 1 : 0);
+        var current = bestByQuality.get(key);
+        if (!current || score > current.score) {
+            bestByQuality.set(key, { source: source, score: score });
+        }
+    });
+    return Array.from(bestByQuality.values()).map(function(item){ return item.source; });
+}
+
+async function watchDownloadContent(id, subjectType, movieTitle, se, ep) {
+    var overlay = document.createElement('div');
+    overlay.id = 'wdlOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.92);z-index:5000;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;backdrop-filter:blur(8px)';
+    var spinnerDiv = document.createElement('div');
+    spinnerDiv.style.cssText = 'width:52px;height:52px;border-radius:50%;background:rgba(229,9,20,.1);display:flex;align-items:center;justify-content:center';
+    spinnerDiv.innerHTML = '<div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.1);border-top-color:#e50914;border-radius:50%;animation:wdlspin .8s linear infinite"></div>';
+    var statusDiv = document.createElement('div');
+    statusDiv.id = 'wdlStatus';
+    statusDiv.style.cssText = 'color:#fff;font-size:15px;font-weight:600';
+    statusDiv.textContent = 'Fetching sources...';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = 'margin-top:8px;background:none;border:1px solid rgba(255,255,255,.2);color:#fff;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px';
+    cancelBtn.onclick = function(){ var e=document.getElementById('wdlOverlay'); if(e) e.remove(); };
+    var spinStyle = document.createElement('style');
+    spinStyle.textContent = '@keyframes wdlspin{to{transform:rotate(360deg)}}';
+    overlay.appendChild(spinnerDiv);
+    overlay.appendChild(statusDiv);
+    overlay.appendChild(cancelBtn);
+    overlay.appendChild(spinStyle);
+    document.body.appendChild(overlay);
+    function removeOverlay(){ var e=document.getElementById('wdlOverlay'); if(e) e.remove(); }
+    function setStatus(msg){ var e=document.getElementById('wdlStatus'); if(e) e.textContent=msg; }
+    try {
+        var ep2 = '/api/sources/' + id;
+        var qp  = new URLSearchParams();
+        if (se > 0 || ep > 0) { qp.set('season', se); qp.set('episode', ep); }
+        var qs = qp.toString(); if (qs) ep2 += '?' + qs;
+        var res  = await fetch(ep2, { credentials: 'include' });
+        var json = await res.json();
+        var sources = [];
+        if (json && json.data) {
+            // Prefer signed same-origin session URLs. Raw CDN URLs are rate-limited
+            // when sent through the generic /api/download relay.
+            if (Array.isArray(json.data.processedSources) && json.data.processedSources.length) sources = json.data.processedSources;
+            else if (Array.isArray(json.data.downloads) && json.data.downloads.length) sources = json.data.downloads;
+            else if (Array.isArray(json.data))             sources = json.data;
+        }
+        // DASH manifests are playback sources, not downloadable video files.
+        // Sending an .mpd through the download proxy only downloads the tiny
+        // manifest, which is why the old first option produced a KB file.
+        var valid = sources.filter(function(s){
+            var sourceUrl = s.streamUrl || s.proxyUrl || s.directUrl || s.cdnUrl || s.url || '';
+            var hasFile = s.downloadUrl || s.directUrl || s.url || s.streamUrl;
+            return hasFile && !isDashSource(s, sourceUrl);
+        });
+        valid = dedupeDownloadSources(valid);
+        if (!valid.length) { setStatus('No downloadable MP4 sources available'); setTimeout(removeOverlay, 2500); return; }
+        removeOverlay();
+        if (valid.length === 1) { triggerWatchDl(valid[0], movieTitle, se, ep); return; }
+        var picker = document.createElement('div');
+        picker.id = 'wdlPicker';
+        picker.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.92);z-index:5000;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;backdrop-filter:blur(8px)';
+        var heading = document.createElement('div');
+        heading.style.cssText = 'color:#fff;font-weight:700;font-size:16px;margin-bottom:4px';
+        heading.textContent = 'Choose quality';
+        picker.appendChild(heading);
+        valid.forEach(function(s, i){
+            var q = sourceQualityLabel(s, i);
+            var btn = document.createElement('button');
+            btn.style.cssText = 'background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;padding:10px 32px;border-radius:8px;cursor:pointer;font-size:14px;min-width:180px';
+            btn.textContent = q;
+            btn.onclick = (function(src){ return function(){
+                document.getElementById('wdlPicker').remove();
+                triggerWatchDl(src, movieTitle, se, ep);
+            }; })(s);
+            picker.appendChild(btn);
+        });
+        var cancelPicker = document.createElement('button');
+        cancelPicker.style.cssText = 'margin-top:4px;background:none;border:1px solid rgba(255,255,255,.2);color:#aaa;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px';
+        cancelPicker.textContent = 'Cancel';
+        cancelPicker.onclick = function(){ document.getElementById('wdlPicker').remove(); };
+        picker.appendChild(cancelPicker);
+        document.body.appendChild(picker);
+    } catch(e) {
+        setStatus('Download failed');
+        setTimeout(removeOverlay, 2500);
+    }
+}
+function triggerWatchDl(source, movieTitle, se, ep) {
+    var rawUrl = source.downloadUrl || source.directUrl || source.url || source.streamUrl || '';
+    if (isDashSource(source, rawUrl)) {
+        showQuickMsg('DASH streams are playback-only. Choose an MP4 quality.', 'error');
+        return;
+    }
+
+    // Use the dedicated MP4 download relay for opaque server sessions. It
+    // applies the provider headers and supplies the real video/mp4 response;
+    // the friend-download path can otherwise return a small JSON rate-limit
+    // error that the browser mistakenly saves as a file.
+    var url = rawUrl.replace('/api/mp4/friend-download/', '/api/mp4/download/');
+    var isServerDownload = url.indexOf('/api/mp4/download/') === 0 || url.indexOf('/api/download') === 0;
+    var ext = isServerDownload ? 'mp4' : ((url.split('?')[0].split('.').pop() || 'mp4').slice(0,4));
+    if (!/^[a-z0-9]{2,5}$/i.test(ext)) ext = 'mp4';
+
+    var fname = movieTitle.replace(/[^a-zA-Z0-9 ]/g,'').trim() || 'movie';
+    if (se > 0 && ep > 0) fname += ' S' + String(se).padStart(2,'0') + 'E' + String(ep).padStart(2,'0');
+    fname += '.' + ext;
+
+    // Server-generated relay URLs must be used directly. The server sends
+    // Content-Disposition on successful MP4 responses; omit the client-side
+    // download attribute so a JSON error is shown instead of saved as a file.
+    var dlUrl = url.indexOf('/api/') === 0
+        ? url
+        : '/api/download?url=' + encodeURIComponent(url) + '&filename=' + encodeURIComponent(fname);
+    if (isServerDownload && !/[?&]filename=/i.test(dlUrl)) {
+        dlUrl += (dlUrl.indexOf('?') >= 0 ? '&' : '?') + 'filename=' + encodeURIComponent(fname);
+    }
+    var a = document.createElement('a');
+    a.href = dlUrl;
+    if (!isServerDownload) a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+</script>
+</body>
+</html>
