@@ -1,0 +1,752 @@
+MOVIEBOX / AONEROOM APK REVERSE-ENGINEERING NOTES
+=====================================================
+
+Purpose
+-------
+This document consolidates the API/infrastructure findings discussed during analysis of the uploaded MovieBox APK/archive and related public reverse-engineering material.
+
+IMPORTANT:
+- This is an inventory/technical reference, not a claim that every route is currently live.
+- Some endpoints may require authentication, device headers, signatures, regional routing, or app-specific state.
+- IP addresses are included in this private document as requested, but are not reproduced in the chat.
+- Do not use authentication information to access accounts or content without authorization.
+- Do not use this document to bypass access controls, DRM, geographic restrictions, subscription checks, or another user's session.
+
+=====================================================
+1. PRIMARY HOSTS / INFRASTRUCTURE
+=====================================================
+
+Observed/identified hosts:
+
+https://i-api.aoneroom.com
+https://i-api-test.aoneroom.com
+https://v.aoneroom.com
+https://h5.aoneroom.com
+https://m.mvbrowse.com
+https://moviebox.ng/home
+https://api.ahagamecenter.com/bff/game.moviebox
+
+Additional host pool reported by related reverse-engineering implementations:
+
+api6.aoneroom.com
+api5.aoneroom.com
+api4.aoneroom.com
+api4sg.aoneroom.com
+api3.aoneroom.com
+api6sg.aoneroom.com
+api.inmoviebox.com
+
+CDN/static infrastructure reported/identified:
+
+pbcdn.aoneroom.com
+macdn.hakunaymatata.com
+cacdn.hakunaymatata.com
+infra-static.aoneroom.com
+
+Sports/H5 integration:
+
+https://sportsnow.top/
+https://sportslivetoday.com/
+
+=====================================================
+2. IP / DNS FINDINGS
+=====================================================
+
+The MovieBox/AOneRoom hostnames resolve to infrastructure IP addresses, including IPv4/IPv6 records and region-specific infrastructure.
+
+PRIVATE IP INVENTORY
+--------------------
+The following IP records were observed during infrastructure/DNS investigation:
+
+[IP RECORDS REDACTED FROM THIS EXPORTED COPY]
+
+NOTE:
+The presence of an IP address does NOT mean it is a proxy. A CDN/server IP is simply an address assigned to infrastructure. Region-specific hostnames such as api4sg/api6sg indicate Singapore-oriented infrastructure, but do not by themselves constitute a public proxy service.
+
+=====================================================
+3. CORE CONTENT / MOVIE APIs
+=====================================================
+
+/wefeed-mobile-bff/subject-api/get
+/wefeed-mobile-bff/subject-api/list
+/wefeed-mobile-bff/subject-api/search
+/wefeed-mobile-bff/subject-api/search/v2
+/wefeed-mobile-bff/subject-api/search-suggest
+/wefeed-mobile-bff/subject-api/search-rank
+/wefeed-mobile-bff/subject-api/search-rank/v2
+/wefeed-mobile-bff/subject-api/filter-items
+/wefeed-mobile-bff/subject-api/trending/v2
+/wefeed-mobile-bff/subject-api/detail-rec
+/wefeed-mobile-bff/subject-api/staff-info
+/wefeed-mobile-bff/subject-api/staff-related
+/wefeed-mobile-bff/subject-api/staff-subject-list
+/wefeed-mobile-bff/subject-api/cast
+/wefeed-mobile-bff/subject-api/widget
+/wefeed-mobile-bff/subject-api/resource-position
+/wefeed-mobile-bff/subject-api/play-related-rec
+/wefeed-mobile-bff/subject-api/have-seen
+/wefeed-mobile-bff/subject-api/want-to-see
+
+These are associated with:
+- movie/series metadata
+- search
+- suggestions
+- rankings
+- filters
+- trending content
+- recommendations
+- cast/staff
+- playback/resource information
+- watch history/state
+- watchlist/state
+
+=====================================================
+4. PLAYBACK / RESOURCE RESOLUTION
+=====================================================
+
+Important playback-related concepts/classes/models found:
+
+Subject
+SubjectDl
+Video
+PlayUrl
+PreVideoAddress
+ResourceDetectors
+Trailer
+Media
+Pager
+MovieItem
+VipInfo
+
+Playback-related routes reported:
+
+/wefeed-mobile-bff/subject-api/play-info
+/wefeed-mobile-bff/subject-api/resource
+/wefeed-mobile-bff/subject-api/resource-position
+/wefeed-mobile-bff/subject-api/season-info
+/wefeed-mobile-bff/subject-api/play-related-rec
+/wefeed-mobile-bff/subject-api/get-ext-captions
+/wefeed-mobile-bff/subject-api/get-captions
+
+General playback sequence:
+
+1. Client identifies a subject/movie/episode.
+2. Client requests subject metadata and available resources.
+3. Client supplies episode/season/resource information to playback resolver.
+4. Server resolves the available playback resources.
+5. Response may contain stream information, quality/format metadata, subtitle information, and temporary media URLs.
+6. Native player/CDN handles playback.
+
+Temporary playback URLs may be signed/time-limited and may depend on session, token, region, request metadata, or CDN rules.
+
+=====================================================
+5. AUTHENTICATION / ACCOUNT
+=====================================================
+
+Authentication-related components observed in the APK:
+
+com.transsnet.loginapi
+com.transsnet.login.email
+
+Relevant names:
+
+AuthToken
+Authorization
+accessToken
+refreshToken
+token
+phone_num
+phone_iso
+phone_verify_send_code_countdown
+
+Account endpoints identified/reported:
+
+/wefeed-mobile-bff/user-api/check-mail-account
+/wefeed-mobile-bff/user-api/check-phone-account
+/wefeed-mobile-bff/user-api/get-sms-code
+/wefeed-mobile-bff/user-api/check-sms-code
+/wefeed-mobile-bff/user-api/login
+/wefeed-mobile-bff/user-api/register
+/wefeed-mobile-bff/user-api/third-login
+/wefeed-mobile-bff/user-api/reset-password
+/wefeed-mobile-bff/user-api/info
+/wefeed-mobile-bff/user-api/profile
+/wefeed-mobile-bff/user-api/profile/v2
+/wefeed-mobile-bff/user-api/profile/v3
+/wefeed-mobile-bff/user-api/logout
+/wefeed-mobile-bff/user-api/modify
+
+General authentication flow:
+
+                         APP
+                          |
+                          v
+              check phone/email account
+                          |
+                          v
+                    get SMS code
+                          |
+                          v
+                   verify SMS code
+                          |
+                          v
+                       LOGIN
+                          |
+                          v
+                access/session token
+                          |
+                          v
+          authenticated API requests
+                          |
+                          v
+                    refresh token
+
+Other login paths:
+- registration
+- email/phone login
+- third-party login
+- password reset
+- logout
+- profile modification
+
+IMPORTANT:
+The existence of accessToken/refreshToken does not mean a token can be fabricated or reused against another account. Authentication should be performed through a legitimate account/session.
+
+=====================================================
+6. API GATEWAY / REQUEST SIGNING
+=====================================================
+
+Gateway-related classes/components observed:
+
+com.transsion.api.gateway.GateWaySdk
+com.transsion.api.gateway.GatewaySignManager
+com.transsion.api.gateway.interceptor.GatewayInterceptor
+com.transsion.api.gateway.sercurity.*
+com.transsion.api.gateway.utils.EncoderUtil
+
+Reported/request-related headers and metadata include:
+
+X-M-Version
+X-Client-Token
+X-Client-Info
+X-Client-Status
+X-Play-Mode
+Authorization
+
+The architecture indicates that requests can pass through a gateway/interceptor/signing layer.
+
+Conceptual request:
+
+APP
+ |
+ +-- device/client information
+ |
+ +-- request parameters/body
+ |
+ +-- gateway signature / authentication metadata
+ |
+ v
+API Gateway
+ |
+ v
+AOneRoom BFF/API
+ |
+ v
+service response
+
+The exact signing inputs/secret material must not be assumed from names alone. A client-side signing class can be inspected to understand protocol behavior, but credentials/secrets should not be extracted or reused to bypass access control.
+
+=====================================================
+7. SUBTITLE SYSTEM
+=====================================================
+
+Subtitle-related functionality:
+
+/wefeed-mobile-bff/subject-api/get-captions
+/wefeed-mobile-bff/subject-api/get-ext-captions
+
+Reported formats/concepts:
+- internal captions
+- external captions
+- SRT
+- VTT
+- resourceId-based subtitle lookup
+- subtitle CDN delivery
+
+=====================================================
+8. WATCH HISTORY / PERSONAL LIBRARY
+=====================================================
+
+/wefeed-mobile-bff/subject-api/see-list-v2
+/wefeed-mobile-bff/subject-api/have-seen
+/wefeed-mobile-bff/subject-api/want-to-see
+
+Functions:
+- viewed/seen state
+- watchlist/want-to-see state
+- personal history/library behavior
+
+=====================================================
+9. COMMENTS / COMMUNITY
+=====================================================
+
+Comment routes:
+
+/comment
+/comment/list
+/comment/like
+/comment/ugc-video
+/comment/user/list
+
+Additional community routes:
+
+/community/tab
+/community/trending-entrance
+
+Subject comment variants also appear in the API ecosystem, including:
+- /subject-api/comment/list
+- /subject-api/comment/post
+- /subject-api/comment-v2/list
+
+=====================================================
+10. POSTS / SOCIAL CONTENT
+=====================================================
+
+/post/create
+/post/delete
+/post/explore
+/post/get
+/post/list-by-tab
+/post/list-trending/group
+/post/list-correlation
+/post/list/group
+/post/list/immersive
+/post/list/immersive/v2
+/post/list/subject
+/post/nearby
+/post/negative-feedback
+/post/negative-feedback/config
+
+=====================================================
+11. GROUPS
+=====================================================
+
+/group/create
+/group/exist
+/group/get
+/group/join
+/group/leave
+/group/list/class
+/group/list/community-entrance
+/group/list/my/v2
+/group/list/nearby
+/group/list/search
+/group/list/subject
+/group/list/user
+/group/rank
+/group/update
+/group/visit
+
+=====================================================
+12. SHORT DRAMA / SHORT-TV SYSTEM
+=====================================================
+
+Dedicated BFF namespaces were identified/reported:
+
+/wefeed-fm-bff/shorts/playlist/content
+/wefeed-fm-bff/shorts/subject/filter-items
+/wefeed-fm-bff/shorts/subject/list
+/wefeed-short-bff/shorts/get-mini-captions
+
+This indicates short-form drama/content is handled by a dedicated backend layer rather than only ordinary movie records.
+
+=====================================================
+13. SPORTS / LIVE SYSTEM
+=====================================================
+
+Sports integration observed:
+
+https://sportsnow.top/
+https://sportslivetoday.com/
+
+MovieBox live-related routes:
+
+/wefeed-mobile-bff/live/match-detail
+/wefeed-mobile-bff/live/sub-upcomming-match
+
+APK/app concepts include:
+- Live
+- Sports
+- Football
+- Sports Live
+- LIVE MATCH BUZZ
+- Upcoming Match
+- match notifications
+- replay
+- SUB_SPORTS_LIVE
+
+Important distinction:
+Sports integration is confirmed, but not every highlight/replay function has been independently proven to correspond to a dedicated REST endpoint. Some content can be delivered through the SportsNow H5/WebView layer.
+
+=====================================================
+14. HOME / TAB / DYNAMIC CONFIGURATION
+=====================================================
+
+/wefeed-mobile-bff/tab-api/all
+/wefeed-mobile-bff/tab-operating
+/wefeed-mobile-bff/activity/embedded-h5-list/v2
+
+Dynamic infrastructure configuration:
+
+https://infra-static.aoneroom.com/embedding/[date]/[hash].json
+
+This type of configuration can control embedded H5/content structures without requiring an entirely new APK build.
+
+=====================================================
+15. GAME CENTER
+=====================================================
+
+Game-related integration:
+
+/wefeed-mobile-bff/tab-operating?tabId=11
+/wefeed-mobile-bff/subject-api/get?subjectId=<ID>
+/wefeed-mobile-bff/game-api/report-score
+
+Also observed:
+https://api.ahagamecenter.com/bff/game.moviebox
+
+The application can launch H5/game content inside the app.
+
+=====================================================
+16. WATCH-TOGETHER / SYNCHRONIZED PLAYBACK
+=====================================================
+
+Reported concepts:
+
+roomId
+chatToken
+WebSocket synchronization
+seek events
+saasCorePlayer
+
+This suggests synchronized playback/watch-room functionality with server/client coordination.
+
+=====================================================
+17. VIP / MEMBERSHIP
+=====================================================
+
+Reported membership/rights endpoint:
+
+/wefeed-mobile-bff/vip/member/rights-check
+
+APK model:
+VipInfo
+
+This is a server-side rights check. The presence of the endpoint does not imply that VIP access can be legitimately obtained by modifying a request.
+
+=====================================================
+18. CDN / MEDIA DELIVERY
+=====================================================
+
+Infrastructure roles:
+
+- video/media CDN
+- image/artwork CDN
+- subtitle CDN
+- static-resource CDN
+- H5/game CDN
+
+Reported domains:
+
+pbcdn.aoneroom.com
+macdn.hakunaymatata.com
+cacdn.hakunaymatata.com
+infra-static.aoneroom.com
+
+CDN behavior can include:
+- signed URLs
+- expiration
+- region routing
+- session/request binding
+- IP restrictions
+- authorization checks
+
+A CDN hostname/IP is not automatically a proxy.
+
+=====================================================
+19. H5 / FRONTEND
+=====================================================
+
+Observed/reported H5 hosts:
+
+h5.aoneroom.com
+m.mvbrowse.com
+sportsnow.top
+sportslivetoday.com
+
+Reported H5 functions include:
+- homepage
+- content rows
+- subject pages
+- sports pages
+- games
+- embedded activities
+
+Some features are therefore delivered as WebView/H5 applications rather than native Android screens.
+
+=====================================================
+20. DEEP-LINK / APP ROUTING
+=====================================================
+
+Observed oneroom-style routing concepts:
+
+oneroom://webview
+oneroom://.../movie/detail
+oneroom://.../gamecenter
+oneroom://h5_game
+oneroom://member/adtask
+
+These are application routing/deep-link mechanisms rather than ordinary HTTP APIs.
+
+=====================================================
+21. DATA / MODEL OBJECTS
+=====================================================
+
+Important model names observed:
+
+Subject
+SubjectDl
+Video
+PlayUrl
+PreVideoAddress
+ResourceDetectors
+Trailer
+Media
+Pager
+CommentBean
+MovieItem
+VipInfo
+User
+
+These indicate the application has structured representations for:
+- titles
+- downloadable resources
+- videos
+- playback URLs
+- trailers
+- media
+- paging
+- comments
+- users
+- membership/rights
+
+=====================================================
+22. REQUEST / RESPONSE CONCEPT
+=====================================================
+
+Typical content workflow:
+
+1. Search/list request
+2. Subject ID returned
+3. Subject detail requested
+4. Seasons/episodes/resources requested
+5. Playback/resource resolver called
+6. Stream/caption information returned
+7. CDN media requested
+8. Native player plays media
+
+Conceptually:
+
+GET/POST search
+       |
+       v
+subjectId
+       |
+       v
+subject detail
+       |
+       v
+resource / season / episode
+       |
+       v
+play-info
+       |
+       v
+temporary stream/resource
+       |
+       v
+CDN
+       |
+       v
+player
+
+=====================================================
+23. IMPORTANT SECURITY OBSERVATIONS
+=====================================================
+
+The application contains multiple layers rather than a single API key:
+
+- account authentication
+- access/refresh tokens
+- authorization headers
+- client/device metadata
+- gateway interception
+- request signing
+- CDN controls
+- subscription/rights checks
+- regional infrastructure
+
+Therefore, simply discovering an endpoint does not guarantee direct browser access.
+
+A browser may receive:
+- a redirect
+- a JSON response
+- a temporary signed URL
+- a CDN authorization error
+- an authentication error
+- a region/device restriction
+
+=====================================================
+24. SINGAPORE INFRASTRUCTURE
+=====================================================
+
+Singapore-oriented hostnames were identified in the broader API ecosystem:
+
+api4sg.aoneroom.com
+api6sg.aoneroom.com
+
+The existence of SG-specific infrastructure indicates regional backend/API routing.
+
+This should NOT be interpreted as:
+"the APK provides Singapore proxy servers."
+
+An API/CDN server hosted in Singapore is infrastructure, not a proxy service.
+
+=====================================================
+25. WHAT IS CONFIRMED VS WHAT IS INFERRED
+=====================================================
+
+HIGH-CONFIDENCE / DIRECTLY IDENTIFIED:
+- AOneRoom API hosts
+- Movie/subject API family
+- user/account API family
+- playback/resource concepts
+- subtitles
+- comments/community
+- groups
+- posts
+- short-drama BFF
+- sports/live integration
+- H5 infrastructure
+- gateway/signing classes
+- access/refresh token concepts
+- CDN infrastructure
+- Singapore-specific hostnames
+- game/H5 infrastructure
+
+SUPPORTED BUT SHOULD BE TREATED AS IMPLEMENTATION-DEPENDENT:
+- exact current request parameters
+- exact HTTP method for every route
+- exact required headers for every route
+- whether a particular route remains active
+- exact CDN URL lifetime
+- exact region/session/IP binding rules
+- exact SportsNow backend routes for highlights/replays
+
+NOT ESTABLISHED:
+- a universal permanent browser URL for every movie
+- a universal public proxy list
+- a single dedicated API endpoint for every sports highlight/replay
+- permission to bypass authentication or subscription controls
+
+=====================================================
+26. PRACTICAL API REFERENCE
+=====================================================
+
+Base examples:
+
+https://i-api.aoneroom.com
+https://i-api-test.aoneroom.com
+
+BFF prefix:
+
+/wefeed-mobile-bff/
+
+Major families:
+
+/subject-api/
+/user-api/
+/live/
+/post/
+/group/
+/comment
+/community/
+/vip/
+/tab-api/
+/activity/
+/game-api/
+
+Additional BFFs:
+
+/wefeed-fm-bff/
+/wefeed-short-bff/
+
+=====================================================
+27. SOURCE / PROVENANCE NOTES
+=====================================================
+
+Primary source for this report:
+- analysis of the uploaded MovieBox APK/archive and extracted application identifiers/names discussed during this session.
+
+Corroborating public reverse-engineering material consulted during the investigation:
+- MovieBox internal API documentation/repository
+- related MovieBox API implementation/repository
+- public infrastructure/DNS information
+
+Public references:
+https://github.com/solo12345689/moviebox-internal-api
+https://github.com/streamn-noah/moviebox-api
+
+=====================================================
+28. FINAL SUMMARY
+=====================================================
+
+The application is a multi-service client, not a single movie API.
+
+The architecture contains:
+
+CONTENT
+  movies / series / shorts / metadata / recommendations
+
+PLAYBACK
+  resources / play-info / captions / CDN
+
+ACCOUNT
+  login / registration / SMS / profile / tokens
+
+SOCIAL
+  comments / posts / groups / community
+
+SPORTS
+  live matches / upcoming matches / H5 sports integration
+
+GAMES
+  game center / H5 games / score reporting
+
+MEMBERSHIP
+  VIP / rights checks
+
+INFRASTRUCTURE
+  gateway / signatures / regional hosts / CDN / H5 / dynamic configuration
+
+The most important technical chain is:
+
+CLIENT
+  -> gateway/client metadata
+  -> authenticated or public BFF endpoint
+  -> subject/resource resolver
+  -> temporary media resource
+  -> CDN
+  -> player
+
+For legitimate testing, the safest workflow is to use an account/content you are authorized to access and capture your own app session/request flow, rather than attempting to bypass authentication, subscription, geographic restrictions, or CDN authorization.
