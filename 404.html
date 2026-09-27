@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found | HM CINEMA</title>
+    <base target="_self">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0E0E10">
+    <meta name="description" content="HM CINEMA 404: endpoint not found.">
+    <meta property="og:title" content="404 • HM CINEMA">
+    <meta property="og:description" content="Endpoint not found on HM CINEMA.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/icon.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0E0E10;
+            color: #FFFFFF;
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .error-code {
+            font-size: 8em;
+            font-weight: 700;
+            color: #00C2FF;
+            text-shadow: 0 0 30px rgba(0, 194, 255, 0.6);
+            margin-bottom: 20px;
+            line-height: 1;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 20px rgba(0, 194, 255, 0.5), 0 0 30px rgba(0, 194, 255, 0.3);
+            }
+            to {
+                text-shadow: 0 0 30px rgba(0, 194, 255, 0.8), 0 0 40px rgba(0, 194, 255, 0.5);
+            }
+        }
+
+        .error-icon {
+            font-size: 5em;
+            color: #00C2FF;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px rgba(0, 194, 255, 0.5);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #FFFFFF;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 194, 255, 0.3);
+        }
+
+        .error-message {
+            font-size: 1.2em;
+            color: #A8A8B2;
+            margin-bottom: 40px;
+            line-height: 1.8;
+        }
+
+        .error-details {
+            background: #1C1C1E;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(0, 194, 255, 0.2);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+        }
+
+        .error-details p {
+            color: #A8A8B2;
+            margin-bottom: 15px;
+        }
+
+        .error-details code {
+            background: #0E0E10;
+            color: #00C2FF;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            display: inline-block;
+            margin: 5px;
+            border: 1px solid rgba(0, 194, 255, 0.3);
+            box-shadow: 0 0 10px rgba(0, 194, 255, 0.2);
+        }
+
+        .actions {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 40px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #00C2FF 0%, #007AFF 100%);
+            color: #FFFFFF;
+            padding: 15px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 1em;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(0, 194, 255, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 194, 255, 0.6);
+            background: linear-gradient(135deg, #007AFF 0%, #00C2FF 100%);
+        }
+
+        .btn-secondary {
+            background: #1C1C1E;
+            border: 2px solid #00C2FF;
+            box-shadow: 0 4px 15px rgba(0, 194, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 194, 255, 0.1);
+            border-color: #007AFF;
+        }
+
+        .suggestions {
+            margin-top: 40px;
+            text-align: left;
+        }
+
+        .suggestions h2 {
+            color: #00C2FF;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(0, 194, 255, 0.3);
+        }
+
+        .suggestion-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .suggestion-list li {
+            background: #1C1C1E;
+            border-left: 4px solid #00C2FF;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .suggestion-list li:hover {
+            background: #0E0E10;
+            border-left-color: #007AFF;
+            box-shadow: 0 0 15px rgba(0, 194, 255, 0.2);
+        }
+
+        .suggestion-list a {
+            color: #00C2FF;
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .suggestion-list a:hover {
+            color: #007AFF;
+        }
+
+        .suggestion-list i {
+            font-size: 1.2em;
+        }
+
+        .footer {
+            margin-top: 60px;
+            padding-top: 40px;
+            border-top: 1px solid rgba(0, 194, 255, 0.2);
+            color: #A8A8B2;
+        }
+
+        .footer p {
+            margin-bottom: 10px;
+        }
+
+        .footer .creator {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #FFFFFF;
+        }
+
+        .highlight {
+            background: linear-gradient(135deg, #00C2FF 0%, #007AFF 100%);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #FFFFFF;
+            text-shadow: 0 0 5px rgba(0, 194, 255, 0.5);
+        }
+
+        @media (max-width: 768px) {
+            .error-code {
+                font-size: 5em;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .error-icon {
+                font-size: 3em;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+    <script src="https://obvioussecretive.com/de/2f/b8/de2fb8a4c3ef9dd70a22e0785ed76341.js"></script>
+    <script src="https://obvioussecretive.com/3d/85/79/3d857978d4d9fbe352d78054228cc767.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="error-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="error-code">404</div>
+        <h1>Page Not Found</h1>
+        <div class="error-message">
+            The page or endpoint you're looking for doesn't exist or has been moved.
+        </div>
+
+        <div class="error-details">
+            <p><strong>What happened?</strong></p>
+            <p>The endpoint you requested could not be found on this server.</p>
+            <p><strong>Requested URL:</strong> <code id="requested-url">/unknown</code></p>
+            <p><strong>Possible reasons:</strong></p>
+            <ul style="list-style: none; padding: 0; color: #A8A8B2; text-align: left; margin-top: 15px;">
+                <li style="margin-bottom: 10px;">• The URL might be misspelled</li>
+                <li style="margin-bottom: 10px;">• The endpoint might have been removed or changed</li>
+                <li style="margin-bottom: 10px;">• You might need to check the API documentation</li>
+            </ul>
+        </div>
+
+        <div class="actions">
+            <a href="/" class="btn">
+                <i class="fas fa-home"></i>
+                Go Home
+            </a>
+        </div>
+
+        <div class="suggestions">
+            <h2>
+                <i class="fas fa-lightbulb"></i>
+                Available Endpoints
+            </h2>
+            <ul class="suggestion-list">
+                <li>
+                    <a href="/api/search/Avatar">
+                        <i class="fas fa-search"></i>
+                        <span>Search: <code>/api/search/{query}</code></span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/api/trending">
+                        <i class="fas fa-fire"></i>
+                        <span>Trending: <code>/api/trending</code></span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/api/homepage">
+                        <i class="fas fa-home"></i>
+                        <span>Homepage: <code>/api/homepage</code></span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/api/hot">
+                        <i class="fas fa-fire"></i>
+                        <span>Hot Content: <code>/api/hot</code></span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/api/info/8906247916759695608">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Movie Info: <code>/api/info/{subject_id}</code></span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/api/sources/8906247916759695608">
+                        <i class="fas fa-download"></i>
+                        <span>Download Sources: <code>/api/sources/{subject_id}</code></span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>MovieBox API Server</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">Need help? Check the API documentation</p>
+            <p class="creator">
+                Built by Hector Manuel with <span style="color: #00C2FF; text-shadow: 0 0 10px rgba(0, 194, 255, 0.6);">💙</span>
+            </p>
+            <div style="margin-top: 25px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                <a href="https://github.com/Matrix1999" target="_self" style="color: #00C2FF; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.3s;" onmouseover="this.style.textShadow='0 0 10px rgba(0, 194, 255, 0.6)'" onmouseout="this.style.textShadow='none'">
+                    <i class="fab fa-github"></i>
+                    <span>GitHub</span>
+                </a>
+                <a href="https://wa.me/233593734312" target="_self" style="color: #00C2FF; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.3s;" onmouseover="this.style.textShadow='0 0 10px rgba(0, 194, 255, 0.6)'" onmouseout="this.style.textShadow='none'">
+                    <i class="fab fa-whatsapp"></i>
+                    <span>WhatsApp</span>
+                </a>
+                <a href="https://t.me/Matrixxxxxxxxx" target="_self" style="color: #00C2FF; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.3s;" onmouseover="this.style.textShadow='0 0 10px rgba(0, 194, 255, 0.6)'" onmouseout="this.style.textShadow='none'">
+                    <i class="fab fa-telegram"></i>
+                    <span>Telegram</span>
+                </a>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Display the attempted URL to help troubleshooting
+        (function () {
+            try {
+                var el = document.getElementById('requested-url');
+                if (el) {
+                    var attempted = window.location.pathname + (window.location.search || '') + (window.location.hash || '');
+                    el.textContent = attempted;
+                }
+            } catch (e) {
+                // no-op
+            }
+        })();
+    </script>
+</body>
+</html>
+
