@@ -797,7 +797,7 @@ async function loadMovie(){
 }
 
 function renderMovie(s, resource, stars){
-    const isTV   = s.subjectType===2||s.type===2;
+    const isTV   = Number(s.subjectType??s.type)===2;
     const poster = getPoster(s);
     const title  = s.title||s.name||'Unknown';
     const year   = s.releaseYear
@@ -808,7 +808,19 @@ function renderMovie(s, resource, stars){
     const country  = s.countryName||s.country||'';
     const desc     = s.description||s.overview||'';
     const genres   = (s.genre||'').split(',').map(g=>g.trim()).filter(Boolean);
-    const seasons  = (resource&&resource.seasons)||s.seasons||s.seasonList||[];
+    const seasons  = [resource&&resource.seasons,s.resource&&s.resource.seasons,s.seasons,s.seasonList]
+        .find(candidate=>Array.isArray(candidate)&&candidate.length>0)||[];
+    const episodesForSeason = season => {
+        const allEp = Array.isArray(season.allEp)
+            ? season.allEp
+            : (typeof season.allEp==='string' ? season.allEp.split(',') : []);
+        const listed = [...new Set(allEp
+            .map(value=>parseInt(String(value).trim(),10))
+            .filter(value=>Number.isInteger(value)&&value>0))].sort((a,b)=>a-b);
+        if(listed.length) return listed;
+        const count = parseInt(season.maxEp||season.episodes||season.epCount||'0',10);
+        return Number.isInteger(count)&&count>0 ? Array.from({length:Math.min(count,500)},(_,i)=>i+1) : [];
+    };
     const cast     = (Array.isArray(stars)&&stars.length?stars:(s.staffList||s.starring||s.cast||[]));
     const trailer  = s.trailer||null;
 
@@ -917,13 +929,13 @@ function renderMovie(s, resource, stars){
         const curEp=parseInt(new URLSearchParams(location.search).get('episode')||'0');
         seasons.forEach((season,idx)=>{
             const se=season.se||season.season||1;
-            const epCount=parseInt(season.maxEp||season.episodes||season.epCount||1);
+            const episodes=episodesForSeason(season);
             epHtml+=`<div class="season-panel${idx===0?' active':''}" id="sp${idx}" data-label="Season ${se}"><div class="ep-grid">`;
-            for(let ep=1;ep<=Math.min(epCount,120);ep++){
+            for(const ep of episodes.slice(0,120)){
                 const active=(se===curSe&&ep===curEp)?' playing':'';
                 epHtml+=`<a class="ep-btn${active}" href="/watch/${movieId}?season=${se}&episode=${ep}&title=${encodeURIComponent(title)}">E${ep}</a>`;
             }
-            if(epCount>120) epHtml+=`<span style="color:#555;font-size:11px;padding:8px 4px;grid-column:1/-1">+${epCount-120} more…</span>`;
+            if(episodes.length>120) epHtml+=`<span style="color:#555;font-size:11px;padding:8px 4px;grid-column:1/-1">+${episodes.length-120} more…</span>`;
             epHtml+=`</div></div>`;
         });
         document.getElementById('sec-episodes').innerHTML=epHtml;

@@ -8,9 +8,11 @@ const path = require('path');
 const { PassThrough, Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const seo = require('./seo');
+const episodeMetadata = require('./episode-metadata');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const BIND_ADDRESS = process.env.HM_CINEMA_BIND_ADDRESS || '0.0.0.0';
 
 // Trust proxy (Nginx) so req.protocol returns 'https' correctly
 app.set('trust proxy', true);
@@ -1619,19 +1621,69 @@ app.get('/api/search', async (req, res) => {
     }
 });
 
+async function hydrateTvSeasonMetadata(content, movieId) {
+    if (!episodeMetadata.needsSeasonHydration(content)) return content;
+
+    const detailPath = content.subject?.detailPath;
+    if (!detailPath) return content;
+
+    try {
+        const token = await getLokLokToken();
+        if (!token) return content;
+
+        const response = await axios.get(
+            `${SEARCH_HOST_URL}/wefeed-h5api-bff/detail`,
+            {
+                params: { detailPath },
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Cookie': `token=${token}`,
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36',
+                    'Referer': `https://mzfi.me/spa/videoPlayPage/movies/${detailPath}?id=${movieId}&type=/movie/detail&lang=en`,
+                    'Origin': 'https://mzfi.me',
+                    'X-Client-Info': JSON.stringify({ timezone: 'Africa/Accra' }),
+                    'X-Request-Lang': 'en',
+                    'X-Source': '',
+                    'X-No-High-Risk-Restrict': '0',
+                    'X-Vip-Restrict': '1'
+                },
+                timeout: 15000
+            }
+        );
+        const detail = processApiResponse(response);
+        const enriched = episodeMetadata.mergeSeasonDetail(content, detail, movieId);
+        if (episodeMetadata.getSeasons(enriched).length > 0) {
+            console.log('[Info] Filled missing TV seasons from H5 detail response');
+        }
+        return enriched;
+    } catch (error) {
+        const status = Number(error.response?.status) || 0;
+        console.warn(`[Info] H5 season lookup failed${status ? ` (HTTP ${status})` : ''}`);
+        return content;
+    }
+}
+
 // Get movie/series detailed information
 app.get('/api/info/:movieId', async (req, res) => {
     try {
         const { movieId } = req.params;
 
         const _ic = infoCache.get(movieId);
-        if (_ic) return res.json(_ic);
+        if (_ic && !episodeMetadata.needsSeasonHydration(_ic.data)) {
+            return res.json(_ic);
+        }
+        if (_ic) infoCache.del(movieId);
 
         // Try the SEO module's cache first — crawler visits already populated it
         const _seoHit = await seo.fetchMovieCached(movieId).catch(() => null);
         if (_seoHit && (_seoHit.subject || _seoHit.data)) {
-            const _cached = { status: 'success', creator:'Hector Manuel ', data: _seoHit };
-            infoCache.set(movieId, _cached);
+            let seoContent = _seoHit.data?.subject ? _seoHit.data : _seoHit;
+            seoContent = await hydrateTvSeasonMetadata(seoContent, movieId);
+            const _cached = { status: 'success', creator:'Hector Manuel ', data: seoContent };
+            if (!episodeMetadata.needsSeasonHydration(seoContent)) {
+                infoCache.set(movieId, _cached);
+            }
             return res.json(_cached);
         }
 
@@ -1666,7 +1718,8 @@ app.get('/api/info/:movieId', async (req, res) => {
             }
         }
         
-        const content = processApiResponse(response);
+        let content = processApiResponse(response);
+        content = await hydrateTvSeasonMetadata(content, movieId);
         
         // Add easily accessible thumbnail URLs and enhance subtitle data
         if (content.subject) {
@@ -1696,7 +1749,9 @@ app.get('/api/info/:movieId', async (req, res) => {
         }
         
         const _ir = { status: 'success', creator:'Hector Manuel ', data: content };
-        infoCache.set(movieId, _ir);
+        if (!episodeMetadata.needsSeasonHydration(content)) {
+            infoCache.set(movieId, _ir);
+        }
         res.json(_ir);
     } catch (error) {
         console.error('Info error:', error.message);
@@ -3068,8 +3123,8 @@ process.on('unhandledRejection', (reason) => {
 if (!process.env.VERCEL) {
     // (cache stats endpoint moved above 404 handler)
 
-app.listen(PORT, '0.0.0.0', () => {
-        console.log(`MovieBox API Server running on http://0.0.0.0:${PORT}`);
+app.listen(PORT, BIND_ADDRESS, () => {
+        console.log(`MovieBox API Server running on http://${BIND_ADDRESS}:${PORT}`);
 
     // -- Pre-warm caches on startup --
     const _http = require('http');

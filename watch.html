@@ -1625,7 +1625,7 @@ async function init() {
         if (!s) return;
 
         const title  = s.name||s.title||titleHint||'Watch Movie';
-        const isTV   = s.subjectType===2;
+        const isTV   = Number(s.subjectType??s.type)===2;
 
         document.getElementById('watchTitle').textContent = title+(season?' S'+season+(episode?'E'+episode:''):'');
         document.title = title+(season?' S'+season+'E'+(episode||1):'')+' - HM CINEMA';
@@ -1650,7 +1650,9 @@ async function init() {
         if (dlBtnEl) dlBtnEl.style.display = "";
 
         if (isTV) {
-            const seasons=(s.resource&&s.resource.seasons)||s.seasons||[];
+            const resource=(json.data&&json.data.resource)||s.resource||{};
+            const seasons=[resource.seasons,s.resource&&s.resource.seasons,s.seasons,s.seasonList]
+                .find(candidate=>Array.isArray(candidate)&&candidate.length>0)||[];
             if (seasons.length) {
                 const navEl=document.getElementById('watchEpNav');
                 const grid=document.getElementById('epNavGrid');
@@ -1667,20 +1669,29 @@ async function init() {
 
                 // Build episode grid for current season
                 const curSe=seasons.find(sv=>(sv.se||sv.season)===season)||seasons[0];
-                const epCnt=parseInt(curSe.maxEp||curSe.episodes||curSe.epCount||1);
+                const allEp=Array.isArray(curSe.allEp)
+                    ? curSe.allEp
+                    : (typeof curSe.allEp==='string' ? curSe.allEp.split(',') : []);
+                const listedEpisodes=[...new Set(allEp
+                    .map(value=>parseInt(String(value).trim(),10))
+                    .filter(value=>Number.isInteger(value)&&value>0))].sort((a,b)=>a-b);
+                const epCnt=parseInt(curSe.maxEp||curSe.episodes||curSe.epCount||'0',10);
+                const episodeNumbers=listedEpisodes.length
+                    ? listedEpisodes
+                    : (Number.isInteger(epCnt)&&epCnt>0 ? Array.from({length:Math.min(epCnt,500)},(_,i)=>i+1) : []);
                 const se=curSe.se||curSe.season||1;
 
                 let epHtml='';
-                for (let ep=1;ep<=epCnt;ep++) {
+                for (const ep of episodeNumbers) {
                     const cur=(ep===(episode||1)&&se===season);
                     epHtml+=`<a class="ep-nav-btn${cur?' current':''}" href="/watch/${movieId}?season=${se}&episode=${ep}&title=${encodeURIComponent(title)}">${ep}</a>`;
                 }
                 grid.innerHTML=epHtml;
                 navEl.style.display='block';
 
-                episodeList=[];
-                for(let ep=1;ep<=epCnt;ep++) episodeList.push({season:se,episode:ep});
-                currentEpIdx=Math.max(0,(episode||1)-1);
+                episodeList=episodeNumbers.map(ep=>({season:se,episode:ep}));
+                const currentIdx=episodeNumbers.indexOf(episode||episodeNumbers[0]);
+                currentEpIdx=Math.max(0,currentIdx);
 
                 if (episodeList.length>1) {
                     if (currentEpIdx>0) document.getElementById('prevBtn').style.display='';
