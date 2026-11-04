@@ -5286,3 +5286,28 @@ img, video, iframe, canvas, svg {
         min-width: 0;
     }
 }
+
+/* Keep the homepage hero action buttons identical across mobile browsers. */
+.slide-actions > .watch-now,
+.slide-actions > .btn-details {
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 40px;
+    min-height: 40px;
+    padding: 0 25px !important;
+    border-width: 1px;
+    border-style: solid;
+    font-family: inherit;
+    font-size: 14px !important;
+    font-weight: 600;
+    line-height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.slide-actions > .watch-now {
+    border-color: transparent;
+}
