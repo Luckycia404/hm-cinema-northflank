@@ -5184,3 +5184,106 @@ img, video, iframe, canvas, svg {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     }
 }
+
+/* HM Cinema player controls: clean, aligned mobile rows */
+@media (max-width: 768px) {
+    .watch-player-wrap .controls-bottom {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .watch-player-wrap .controls-left {
+        display: flex;
+        flex-flow: row nowrap;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 6px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .watch-player-wrap .controls-left .control-btn,
+    .watch-player-wrap .controls-left .skip-btn {
+        flex: 0 0 38px;
+        width: 38px;
+        min-width: 38px;
+        min-height: 38px;
+        padding: 6px;
+        justify-content: center;
+    }
+
+    .watch-player-wrap .controls-left .time-display {
+        margin-left: auto;
+        white-space: nowrap;
+        font-size: 11px;
+    }
+
+    .watch-player-wrap .controls-right {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        align-items: center;
+        justify-content: stretch;
+        gap: 7px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .watch-player-wrap .controls-right > button,
+    .watch-player-wrap .controls-right > div:not(.player-volume-wrap) {
+        min-width: 0;
+        width: 100%;
+        justify-self: stretch;
+    }
+
+    .watch-player-wrap .controls-right .control-btn,
+    .watch-player-wrap .controls-right .zoom-btn,
+    .watch-player-wrap .controls-right .pip-btn,
+    .watch-player-wrap .controls-right .rotate-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        min-height: 38px;
+        padding: 6px 3px;
+    }
+
+    .watch-player-wrap .controls-right .player-volume-wrap {
+        grid-column: 1 / -1;
+        order: initial;
+        display: flex;
+        flex: initial;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        min-width: 0;
+        padding: 2px 0;
+    }
+
+    .watch-player-wrap .controls-right .player-volume-wrap input {
+        width: min(180px, 55vw);
+        max-width: none;
+    }
+
+    .watch-player-wrap .controls-right #qualityPickerWrap {
+        grid-column: span 2;
+        width: 100%;
+    }
+
+    .watch-player-wrap .controls-right #qualityBtn {
+        width: 100%;
+        min-height: 38px;
+        justify-content: center;
+        white-space: nowrap;
+    }
+
+    .watch-player-wrap .controls-right .subtitle-selector-container,
+    .watch-player-wrap .controls-right .speed-selector-container,
+    .watch-player-wrap .controls-right .dub-selector-container {
+        width: 100%;
+        min-width: 0;
+    }
+}
