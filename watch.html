@@ -338,11 +338,6 @@
                         <button class="pip-btn" id="pipBtn" title="Picture-in-Picture" onclick="togglePip()">
                             <i class="fas fa-clone"></i>
                         </button>
-                        <!-- Volume slider -->
-                        <div class="player-volume-wrap" id="playerVolumeWrap">
-                            <button class="control-btn" id="volumeSliderMute" type="button" title="Mute / unmute" aria-label="Mute or unmute"><i class="fas fa-volume-up"></i></button>
-                            <input id="playerVolumeSlider" type="range" min="0" max="100" value="100" aria-label="Volume" title="Volume">
-                        </div>
                         <!-- Subtitle appearance -->
                         <button class="control-btn" id="subtitleStyleBtn" type="button" title="Subtitle appearance" aria-label="Subtitle appearance"><i class="fas fa-text-height"></i></button>
                         <!-- Share -->
@@ -933,9 +928,7 @@ function updateMuteButton() {
         ? '<i class="fas fa-volume-mute"></i>'
         : '<i class="fas fa-volume-up"></i>';
     const muteBtn = document.getElementById('muteBtn');
-    const sliderMute = document.getElementById('volumeSliderMute');
     if (muteBtn) muteBtn.innerHTML = icon;
-    if (sliderMute) sliderMute.innerHTML = icon;
 }
 function toggleMute() {
     // If volume was dragged to zero, restore the last audible level on unmute.
@@ -1758,23 +1751,16 @@ function setupControlsAutoHide() {
 function setupPlayerPreferences() {
     const speed=Number(hmPlayerPrefs.speed||localStorage.getItem('hm_player_speed')||1);
     if ([.25,.5,.75,1,1.25,1.5,1.75,2].includes(speed)) setPlaybackSpeed(speed);
-    const vol=document.getElementById('playerVolumeSlider');
-    const mute=document.getElementById('volumeSliderMute');
     if (typeof hmPlayerPrefs.volume==='number' && hmPlayerPrefs.volume>0) video.volume=Math.max(0,Math.min(1,hmPlayerPrefs.volume));
     // Mute is temporary: never restore or persist a muted state between visits.
     video.muted=false;
     delete hmPlayerPrefs.muted;
-    if (vol) vol.value=String(Math.round(video.volume*100));
     const update=()=>{
-        if(vol) vol.value=String(Math.round(video.volume*100));
-        if(mute) mute.innerHTML=(video.muted||video.volume===0)?'<i class="fas fa-volume-mute"></i>':'<i class="fas fa-volume-up"></i>';
         if (video.volume>0) hmPlayerPrefs.volume=video.volume;
         delete hmPlayerPrefs.muted;
         savePlayerPrefs();
         updateMuteButton();
     };
-    vol?.addEventListener('input',()=>{video.volume=Number(vol.value)/100;if(video.volume>0)video.muted=false;update();});
-    mute?.addEventListener('click',()=>{toggleMute();update();});
     video.addEventListener('volumechange',update);
     update();
     const quality=hmPlayerPrefs.quality;
