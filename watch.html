@@ -1752,7 +1752,10 @@ function setupPlayerPreferences() {
     const vol=document.getElementById('playerVolumeSlider');
     const mute=document.getElementById('volumeSliderMute');
     if (typeof hmPlayerPrefs.volume==='number') video.volume=Math.max(0,Math.min(1,hmPlayerPrefs.volume));
-    if (typeof hmPlayerPrefs.muted==='boolean') video.muted=hmPlayerPrefs.muted;
+    // Start each title with audio enabled; an old saved mute flag must not
+    // silently mute every new movie or episode. Viewers can still mute manually.
+    video.muted=false;
+    hmPlayerPrefs.muted=false;
     if (vol) vol.value=String(Math.round(video.volume*100));
     const update=()=>{
         if(vol) vol.value=String(Math.round(video.volume*100));
