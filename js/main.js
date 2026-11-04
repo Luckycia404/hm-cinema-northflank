@@ -223,6 +223,8 @@ let episodeSelectMode = 'watch';
 
         function showAllContent(type, title) {
             showSearchPage();
+            const resultsGrid = document.getElementById('searchResultsGrid');
+            if (resultsGrid) resultsGrid.classList.add('view-all-results');
             document.getElementById('searchResultsTitle').textContent = title + ' - All Content';
             loadEnhancedContentForType(type, 'searchResultsGrid');
         }
@@ -1243,17 +1245,30 @@ function displayMovies(movies, gridId, append = false) {
 
     // FORCE: Aggressive reflow with dense flow to eliminate empty spaces
     grid.style.cssText = 'display: grid !important; grid-auto-flow: dense !important; align-content: start !important;';
+    const applyViewAllLayout = () => {
+        if (!grid.classList.contains('view-all-results')) return;
+        grid.style.setProperty('display', 'grid', 'important');
+        grid.style.setProperty('grid-template-columns', 'repeat(3, minmax(0, 1fr))', 'important');
+        grid.style.setProperty('grid-auto-flow', 'row', 'important');
+        grid.style.setProperty('grid-auto-columns', 'auto', 'important');
+        grid.style.setProperty('overflow-x', 'visible', 'important');
+        grid.style.setProperty('overflow-y', 'visible', 'important');
+        grid.style.setProperty('scroll-snap-type', 'none', 'important');
+    };
+    applyViewAllLayout();
     
     // Multiple force cycles to ensure layout sticks
     setTimeout(() => {
         grid.style.display = 'grid';
         grid.style.gridAutoFlow = 'dense';
         grid.style.alignContent = 'start';
+        applyViewAllLayout();
     }, 50);
     
     setTimeout(() => {
         grid.style.display = 'grid';
         grid.style.gridAutoFlow = 'dense';
+        applyViewAllLayout();
     }, 150);
 }
 
@@ -1447,12 +1462,16 @@ async function loadMoreViewAllContent(type, gridId, page) {
 
 function showAllContent(type, title) {
     showSearchPage();
+    const resultsGrid = document.getElementById('searchResultsGrid');
+    if (resultsGrid) resultsGrid.classList.add('view-all-results');
     document.getElementById('searchResultsTitle').textContent = `${title} - All Content (Scroll for more)`;
     loadEnhancedContentForType(type, 'searchResultsGrid');
 }
 
         // Search functionality with improved error handling
         async function searchContent() {
+            const resultsGrid = document.getElementById('searchResultsGrid');
+            if (resultsGrid) resultsGrid.classList.remove('view-all-results');
             const query = document.getElementById('searchInput').value.trim();
             if (!query) {
                 alert('Please enter a search term');

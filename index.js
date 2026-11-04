@@ -10,6 +10,7 @@ const { pipeline } = require('stream/promises');
 const seo = require('./seo');
 const episodeMetadata = require('./episode-metadata');
 const sitemapBuilder = require('./build-sitemap');
+const seoLanding = require('./seo-landing');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -1035,6 +1036,30 @@ async function pipeCdnStream(res, targetUrl, contentDisposition = null, extraHea
     }
 }
 
+// Secondary live-score feed: Football LiveGames (score verification only).
+// This endpoint deliberately does not expose or relay its stream URLs.
+let footballLiveGamesScoreCache = { at: 0, matches: [] };
+app.get('/api/sports/scores', async (req, res) => {
+    try {
+        const now = Date.now();
+        if (now - footballLiveGamesScoreCache.at > 10000 || !footballLiveGamesScoreCache.matches.length) {
+            const response = await axios.get('https://football-livegames.officialhectormanuel.workers.dev/api/matches/live', {
+                timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
+            });
+            const payload = response.data || {};
+            if (response.status !== 200 || payload.ok !== true || !Array.isArray(payload.matches)) {
+                throw new Error('Football LiveGames score feed returned an invalid response');
+            }
+            footballLiveGamesScoreCache = { at: now, matches: payload.matches };
+        }
+        res.set('Cache-Control', 'no-store');
+        res.json({ ok: true, source: 'Football LiveGames', updatedAt: new Date(footballLiveGamesScoreCache.at).toISOString(), matches: footballLiveGamesScoreCache.matches });
+    } catch (error) {
+        console.error('[Sports score fallback] Football LiveGames:', error.response?.status || error.message);
+        res.status(502).json({ ok: false, error: 'Live score fallback unavailable' });
+    }
+});
+
 // SportsNow live HLS relay. The upstream CDN requires sportsnow.top as
 // Referer/Origin and rejects direct browser requests from hm-cinema.me. Keep the
 // allow-list narrow and rewrite every playlist URI so segments use this relay too.
@@ -1193,10 +1218,19 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Focused, useful landing pages for broad movie/series discovery searches.
+for (const landingPath of Object.keys(seoLanding.PAGES)) {
+    app.get(landingPath, (req, res) => {
+        const html = seoLanding.render(landingPath);
+        if (!html) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+        res.type('html').send(html);
+    });
+}
+
 // -----------------------------------------------------------------------------
 // SEO: search-engine-friendly per-movie / per-show pages.
 //
-// /movie/:id and /tv/:id (with optional decorative /:slug) return the SPA
+// /movie/:id, /tv/:id and /music/:id (with optional decorative /:slug) return the SPA
 // template with title/description/OG tags/canonical/JSON-LD swapped in for
 // the requested title. Real users see the SPA and the deep-link bootstrap
 // (in index.html) auto-opens the modal for that movie. Crawlers see rich,
@@ -1266,13 +1300,13 @@ seo.configure({
 // Bots / link-preview crawlers that need server-rendered SEO meta tags.
 // Regular browsers get movie.html served directly so the upstream API call
 // never blocks or rate-limits a real user visit.
-const CRAWLER_RE = /Googlebot|bingbot|Baiduspider|YandexBot|Slurp|DuckDuckBot|facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Slackbot|ia_archiver/i;
+const CRAWLER_RE = /Googlebot|Google-InspectionTool|GoogleOther|bingbot|Baiduspider|YandexBot|Slurp|DuckDuckBot|facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Slackbot|ia_archiver/i;
 function isCrawler(req) {
     return CRAWLER_RE.test(req.headers['user-agent'] || '');
 }
 
-// Shared handler for /movie/:id/:slug? and /tv/:id/:slug?
-async function handleSeoTitlePage(req, res, isTv) {
+// Shared handler for typed content routes.
+async function handleSeoTitlePage(req, res, expectedType) {
     const { id } = req.params;
     // Accept only numeric subjectIds — anything else is almost certainly an
     // attempt to probe for files and would just waste an upstream call.
@@ -1293,14 +1327,16 @@ async function handleSeoTitlePage(req, res, isTv) {
             return res.status(404).sendFile(path.join(__dirname, 'movie.html'));
         }
 
-        const subjectIsTv = subject.subjectType === 2;
+        const subjectType = Number(subject.subjectType);
+        const actualType = seo.routeType(subjectType);
+        if (!actualType) {
+            // Unknown upstream content types must not be mislabeled as movies.
+            return res.status(404).sendFile(path.join(__dirname, '404.html'));
+        }
         const canonical = seo.baseUrl(req) + seo.urlFor(subject);
 
-        // 301 redirect when the URL prefix doesn't match the content type.
-        // e.g. /movie/4553172416389965520 for a TV series should redirect to
-        // /tv/4553172416389965520/the-last-teal-dragon so Google has one clear
-        // canonical URL and doesn't split signals between /movie/ and /tv/.
-        if (subjectIsTv !== isTv) {
+        // Keep one canonical route for each upstream content type.
+        if (actualType !== expectedType) {
             return res.redirect(301, canonical);
         }
 
@@ -1308,27 +1344,64 @@ async function handleSeoTitlePage(req, res, isTv) {
             template: seo.getMovieTemplate(),
             subject,
             stars,
-            isTv: subjectIsTv,
+            isTv: actualType === 'tv',
+            isMusic: actualType === 'music',
             canonicalUrl: canonical,
         });
         res.type('html').send(html);
     } catch (e) {
+        const upstreamStatus = Number(e.response && e.response.status) || 0;
         console.error('[SEO] handleSeoTitlePage error:', e.message);
-        // Return 503 (not 200) so search engines don't soft-index a broken
-        // page during an upstream outage — they'll just retry later.
-        res.status(503).sendFile(path.join(__dirname, 'movie.html'));
+        if (upstreamStatus === 404) {
+            return res.status(404).sendFile(path.join(__dirname, '404.html'));
+        }
+        // Temporary upstream/network failures should be retried by crawlers.
+        // Known-good cached metadata is served stale before reaching this path.
+        return res.status(503).sendFile(path.join(__dirname, 'movie.html'));
     }
 }
 
 // Express 5 removed the `?` optional-segment syntax — register both forms.
-app.get('/movie/:id',       (req, res) => handleSeoTitlePage(req, res, false));
-app.get('/movie/:id/:slug', (req, res) => handleSeoTitlePage(req, res, false));
-app.get('/tv/:id',            (req, res) => handleSeoTitlePage(req, res, true));
-app.get('/tv/:id/:slug',      (req, res) => handleSeoTitlePage(req, res, true));
+app.get('/movie/:id',       (req, res) => handleSeoTitlePage(req, res, 'movie'));
+app.get('/movie/:id/:slug', (req, res) => handleSeoTitlePage(req, res, 'movie'));
+app.get('/tv/:id',            (req, res) => handleSeoTitlePage(req, res, 'tv'));
+app.get('/tv/:id/:slug',      (req, res) => handleSeoTitlePage(req, res, 'tv'));
+app.get('/music/:id',         (req, res) => handleSeoTitlePage(req, res, 'music'));
+app.get('/music/:id/:slug',   (req, res) => handleSeoTitlePage(req, res, 'music'));
 app.get('/sports',            (req, res) => res.sendFile(path.join(__dirname, 'sports.html')));
-app.get('/watch/:id',         (req, res) => {
-    res.set('X-Robots-Tag', 'noindex, follow');
-    return res.sendFile(path.join(__dirname, 'watch.html'));
+app.get('/watch/:id', async (req, res) => {
+    const id = String(req.params.id || '');
+    if (!/^\d+$/.test(id)) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    let html = require('fs').readFileSync(path.join(__dirname, 'watch.html'), 'utf8');
+    try {
+        const data = await seo.fetchMovieCached(id);
+        const subject = data && (data.subject || data);
+        if (!subject || !subject.title) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+        const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const title = subject.title;
+        const description = String(subject.description || ('Watch ' + title + ' on HM CINEMA.')).replace(/\s+/g, ' ').trim().slice(0, 300);
+        const poster = (subject.cover && subject.cover.url) || subject.thumbnail || '';
+        const canonical = seo.baseUrl(req) + '/watch/' + encodeURIComponent(id);
+        html = html.replace(/<title[^>]*>[\s\S]*?<\/title>/i, '<title>' + esc('Watch ' + title + ' Online - HM CINEMA') + '</title>');
+        html = html.replace(/<meta\s+name=["']robots["'][^>]*>/i, '<meta name="robots" content="index,follow,max-image-preview:large,max-video-preview:-1">');
+        const metadata = '<link rel="canonical" href="' + esc(canonical) + '">\n' +
+            '<meta name="description" content="' + esc(description) + '">\n' +
+            '<meta property="og:type" content="video.other">\n' +
+            '<meta property="og:title" content="' + esc(title) + '">\n' +
+            '<meta property="og:description" content="' + esc(description) + '">\n' +
+            '<meta property="og:url" content="' + esc(canonical) + '">\n' +
+            (poster ? '<meta name="thumbnail" content="' + esc(poster) + '">\n<meta property="og:image" content="' + esc(poster) + '">\n' : '');
+        html = html.replace(/<\/head>/i, metadata + '</head>');
+        if (poster) html = html.replace('<video class="video-player" id="videoPlayer" playsinline>', '<video class="video-player" id="videoPlayer" playsinline poster="' + esc(poster) + '">');
+        html = html.replace('<div class="watch-title" id="watchTitle">Watch Movie</div>', '<div class="watch-title" id="watchTitle">' + esc(title) + '</div>');
+        html = html.replace('<div class="wb-header" id="wbHeader" style="display:none">', '<div class="wb-header" id="wbHeader" style="display:block">');
+        html = html.replace('<h2 class="wb-title" id="wbTitle"></h2>', '<h1 class="wb-title" id="wbTitle">' + esc(title) + '</h1>');
+        html = html.replace('<div class="wb-meta" id="wbMeta"></div>', '<div class="wb-meta" id="wbMeta"></div><p style="color:#aaa;line-height:1.6;margin-top:8px;font-size:14px">' + esc(description) + '</p>');
+        return res.type('html').send(html);
+    } catch (error) {
+        console.warn('[WATCH SEO] Metadata lookup failed for ' + id + ': ' + error.message);
+        return res.sendFile(path.join(__dirname, 'watch.html'));
+    }
 });
 
 // Static metadata routes
@@ -1778,7 +1851,7 @@ app.get('/api/sources/:movieId', async (req, res) => {
         
         const cacheKey = `${movieId}_${season}_${episode}`;
         const cached = getCachedSources(cacheKey);
-        if (cached) {
+        if (cached && req.query.refresh !== '1') {
             console.log(`Serving cached sources for movieId: ${movieId}`);
             return res.json(cached);
         }
@@ -2294,6 +2367,46 @@ app.get('/api/sources/:movieId', async (req, res) => {
             message: 'Failed to fetch streaming sources',
             error: error.message
         });
+    }
+});
+
+// Stable video URL for search crawlers. A short-lived session cache keeps
+// repeated Google range requests from re-fetching provider metadata each time.
+const videoSeoSessions = new Map();
+app.get('/api/video/:movieId', async (req, res) => {
+    const movieId = String(req.params.movieId || '');
+    if (!/^\d+$/.test(movieId)) return res.status(404).end();
+    const season = Math.max(0, parseInt(req.query.season, 10) || 0);
+    const episode = Math.max(0, parseInt(req.query.episode, 10) || 0);
+    try {
+        const cacheKey = `${movieId}_${season}_${episode}`;
+        let sessionId = videoSeoSessions.get(cacheKey);
+        if (!sessionId || !getMp4Session(sessionId)) {
+            const localBase = `http://127.0.0.1:${Number(process.env.PORT) || 5000}`;
+            const query = new URLSearchParams({ refresh: '1', season: String(season), episode: String(episode) });
+            const sourceResponse = await fetch(`${localBase}/api/sources/${encodeURIComponent(movieId)}?${query}`);
+            if (!sourceResponse.ok) return res.status(502).json({ status: 'error', message: 'Could not prepare video source' });
+            const payload = await sourceResponse.json();
+            const data = payload && (payload.data || payload);
+            const sources = Array.isArray(data && data.processedSources) ? data.processedSources : [];
+            const mp4Sources = sources.filter(source => source && String(source.format).toLowerCase() === 'mp4' && (source.proxyUrl || source.streamUrl));
+            const selected = mp4Sources.find(source => /360/.test(String(source.quality || source.label || ''))) || mp4Sources[0];
+            if (!selected) return res.status(404).json({ status: 'error', message: 'No MP4 source is currently available' });
+            const proxyPath = selected.proxyUrl || selected.streamUrl;
+            const sessionMatch = String(proxyPath).match(/^\/api\/mp4\/stream\/([a-f0-9]+)$/i);
+            if (!sessionMatch || !getMp4Session(sessionMatch[1])) {
+                return res.status(502).json({ status: 'error', message: 'A fresh video proxy session could not be created' });
+            }
+            sessionId = sessionMatch[1];
+            videoSeoSessions.set(cacheKey, sessionId);
+            while (videoSeoSessions.size > 500) videoSeoSessions.delete(videoSeoSessions.keys().next().value);
+        }
+        if (req.method === 'HEAD' && !req.headers.range) req.headers.range = 'bytes=0-0';
+        req.params = { ...req.params, sessionId };
+        return pipeMp4Session(req, res, false);
+    } catch (error) {
+        console.error('[VIDEO SEO] Stable stream error:', error.message);
+        if (!res.headersSent) return res.status(502).json({ status: 'error', message: 'Video stream is temporarily unavailable' });
     }
 });
 
@@ -3056,6 +3169,49 @@ app.get('/api/captions/:movieId', async (req, res) => {
     } catch (error) {
         console.error('Captions error:', error.message);
         res.status(500).json({ status: 'error', creator: 'Hector Manuel ', message: 'Failed to fetch captions', error: error.message });
+    }
+});
+
+
+// Playback issue reports submitted from the watch player.
+const playerReportRate = new Map();
+app.post('/api/player-report', async (req, res) => {
+    res.set('Cache-Control','no-store');
+    try {
+        const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
+        const now = Date.now();
+        const last = playerReportRate.get(ip) || 0;
+        if (now - last < 30000) return res.status(429).json({status:'error',message:'Please wait before sending another report.'});
+        const body = req.body || {};
+        const clean = (value, max=180) => String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
+        const movieId = clean(body.movieId,100);
+        const allowedReasons = ['Video will not play','Video keeps buffering','Audio problem','Subtitle problem','Wrong language or episode','Video quality problem','Other'];
+        if (!movieId || !/^[a-zA-Z0-9_-]+$/.test(movieId)) return res.status(400).json({status:'error',message:'A valid title ID is required.'});
+        const report = {
+            id: require('crypto').randomUUID(),
+            createdAt: new Date().toISOString(),
+            movieId,
+            title: clean(body.title,160),
+            season: Math.max(0,Math.min(999,Number(body.season)||0)),
+            episode: Math.max(0,Math.min(9999,Number(body.episode)||0)),
+            quality: clean(body.quality,40),
+            reason: allowedReasons.includes(body.reason) ? body.reason : 'Other',
+            details: clean(body.details,500),
+            playbackTime: Math.max(0,Math.min(86400,Number(body.playbackTime)||0)),
+            userAgent: clean(body.userAgent,180)
+        };
+        const fs = require('fs').promises;
+        const file = path.join(__dirname,'player-reports.json');
+        let reports=[];
+        try { const existing=JSON.parse(await fs.readFile(file,'utf8')); if(Array.isArray(existing)) reports=existing; } catch(e) {}
+        reports.push(report);
+        if(reports.length>1000) reports=reports.slice(-1000);
+        await fs.writeFile(file,JSON.stringify(reports,null,2),'utf8');
+        playerReportRate.set(ip,now);
+        res.status(201).json({status:'success',message:'Report received',id:report.id});
+    } catch(error) {
+        console.error('[PLAYER REPORT] Save failed:',error.message);
+        res.status(500).json({status:'error',message:'Could not save report.'});
     }
 });
 

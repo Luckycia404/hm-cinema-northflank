@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icon.png">
     <meta name="theme-color" content="#000000">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/style.css?v=10">
+    <link rel="stylesheet" href="/style.css?v=16">
     <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#000;min-height:100vh;font-family:inherit;color:#fff}
@@ -82,7 +82,7 @@
     .rotate-btn.active{color:#e50914}
 
     /* Below-player layout */
-    .watch-body{padding:16px 14px 40px;background:#0a0a12;min-height:60px}
+    .watch-body{padding:10px 14px 40px;background:#0a0a12;min-height:60px}
     .wb-header{margin-bottom:18px}
     .wb-header{margin-bottom:18px}
     .wb-title-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
@@ -185,12 +185,14 @@
         }
 
 /* Responsive Display Banner between the player and download area */
-.hm-watch-display-ad{display:flex;justify-content:center;align-items:flex-start;width:100%;max-width:100%;min-height:90px;padding:18px 12px 6px;background:#0a0a12;overflow:hidden;text-align:center;box-sizing:border-box}
-.hm-watch-display-ad .hm-ad-unit{display:inline-flex;align-items:center;justify-content:center;max-width:100%;overflow:hidden}
+.watch-player-wrap .video-wrapper{min-height:0!important;flex:0 0 auto!important}
+.hm-watch-display-ad{display:flex;justify-content:center;align-items:center;width:100%;max-width:100%;min-height:126px;margin:0;padding:18px 12px;background:#000;overflow:hidden;text-align:center;box-sizing:border-box}
+.hm-watch-display-ad .hm-ad-unit{display:flex;align-items:center;justify-content:center;width:100%;max-width:100%;margin:0 auto;overflow:hidden}
+.hm-watch-display-ad iframe{display:block;margin:0 auto}
 .hm-watch-display-ad .hm-ad-mobile{display:none}
 .hm-watch-display-ad iframe{display:block;max-width:100%;border:0}
 @media (max-width:767px){
-  .hm-watch-display-ad{min-height:250px;padding:16px 0 4px}
+  .hm-watch-display-ad{min-height:266px;padding:8px 0;background:#000}
   .hm-watch-display-ad .hm-ad-desktop{display:none}
   .hm-watch-display-ad .hm-ad-mobile{display:inline-flex}
 }
@@ -248,6 +250,7 @@
                     <i class="fas fa-play"></i>
                 </div>
 
+                <button class="skip-intro-btn" id="skipIntroBtn" type="button" hidden>Skip Intro <i class="fas fa-forward"></i></button>
                 <!-- Gesture indicator -->
                 <div class="gesture-indicator" id="gestureIndicator">
                     <div class="gesture-icon" id="gestureIcon"><i class="fas fa-sun"></i></div>
@@ -261,6 +264,7 @@
                 <div class="progress-container" id="progressContainer">
                     <div class="buffered-bar" id="bufferedBar"></div>
                     <div class="progress-bar" id="progressBar"></div>
+                    <div class="timeline-preview" id="timelinePreview" aria-hidden="true"><img id="timelinePreviewImage" alt=""><span id="timelinePreviewTime"></span></div>
                 </div>
 
                 <!-- Dub panel (above controls bar) -->
@@ -334,6 +338,17 @@
                         <button class="pip-btn" id="pipBtn" title="Picture-in-Picture" onclick="togglePip()">
                             <i class="fas fa-clone"></i>
                         </button>
+                        <!-- Volume slider -->
+                        <div class="player-volume-wrap" id="playerVolumeWrap">
+                            <button class="control-btn" id="volumeSliderMute" type="button" title="Mute / unmute" aria-label="Mute or unmute"><i class="fas fa-volume-up"></i></button>
+                            <input id="playerVolumeSlider" type="range" min="0" max="100" value="100" aria-label="Volume" title="Volume">
+                        </div>
+                        <!-- Subtitle appearance -->
+                        <button class="control-btn" id="subtitleStyleBtn" type="button" title="Subtitle appearance" aria-label="Subtitle appearance"><i class="fas fa-text-height"></i></button>
+                        <!-- Share -->
+                        <button class="control-btn" id="sharePlayerBtn" type="button" title="Share this title" aria-label="Share this title"><i class="fas fa-share-alt"></i></button>
+                        <!-- Report playback problem -->
+                        <button class="control-btn" id="reportPlayerBtn" type="button" title="Report a playback problem" aria-label="Report a playback problem"><i class="fas fa-flag"></i></button>
                         <!-- Quality -->
                         <div class="quality-picker-wrap" id="qualityPickerWrap">
                             <button class="quality-btn" id="qualityBtn" onclick="toggleQualityPopup(event)" title="Quality">
@@ -357,18 +372,7 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Error panel -->
-    <div class="watch-error" id="watchError">
-        <i class="fas fa-exclamation-triangle"></i>
-        <h3 id="watchErrorMsg">Stream unavailable</h3>
-        <p>No streams found for this title right now.</p>
-        <a id="errorBackBtn" href="/">← Go back</a>
-    </div>
-
-    <!-- Adsterra display banner between player and download area -->
+        <!-- Adsterra display banner between player and download area -->
     <section class="hm-watch-display-ad" aria-label="Advertisement">
         <div class="hm-ad-unit hm-ad-desktop">
             <script>
@@ -396,6 +400,18 @@
         </div>
     </section>
 
+    </div>
+
+    <!-- Error panel -->
+    <div class="watch-error" id="watchError">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3 id="watchErrorMsg">Stream unavailable</h3>
+        <p>No streams found for this title right now.</p>
+        <a id="errorBackBtn" href="/">← Go back</a>
+    </div>
+
+
+
     <!-- Below player -->
     <div class="watch-body">
 
@@ -406,14 +422,6 @@
                 <button class="watch-dl-btn" id="watchDlBtn" onclick="startWatchDownload()" style="display:none"><i class="fas fa-download"></i> Download</button>
             </div>
             <div class="wb-meta" id="wbMeta"></div>
-        </div>
-
-        <!-- Season + episode nav (TV only) -->
-        <div class="ep-nav-wrap" id="watchEpNav" style="display:none">
-            <div class="ep-nav-hdr">
-                <div class="ep-season-tabs" id="epSeasonTabs"></div>
-            </div>
-            <div class="ep-nav-grid" id="epNavGrid"></div>
         </div>
 
     </div>
@@ -538,12 +546,22 @@ function restorePosition() {
     try {
         const d = JSON.parse(raw);
         const daysSince = (Date.now()-d.ts)/(1000*60*60*24);
-        if (daysSince<30 && d.t>5) {
-            video.addEventListener('loadeddata', function onLD() {
-                video.removeEventListener('loadeddata', onLD);
-                video.currentTime = d.t;
-                showQuickMsg('Resuming from '+fmt(d.t),'info');
-            });
+        if (daysSince<30 && d.t>30 && (!d.dur || d.t < d.dur-20)) {
+            video.addEventListener('loadedmetadata', function onResumeMeta() {
+                video.removeEventListener('loadedmetadata', onResumeMeta);
+                video.pause();
+                const overlay=document.createElement('div');
+                overlay.className='player-resume-overlay';
+                overlay.innerHTML='<div class="player-dialog"><div class="player-dialog-kicker">WELCOME BACK</div><h3>Continue watching?</h3><p>Pick up where you left off at <strong>'+fmt(d.t)+'</strong>.</p><div class="player-dialog-actions"><button type="button" class="resume-continue">Continue</button><button type="button" class="resume-start">Start Over</button></div></div>';
+                document.body.appendChild(overlay);
+                overlay.querySelector('.resume-continue').addEventListener('click',()=>{
+                    video.currentTime=Math.min(d.t,Math.max(0,(video.duration||d.dur||d.t)-1));
+                    overlay.remove(); video.play().catch(()=>{});
+                });
+                overlay.querySelector('.resume-start').addEventListener('click',()=>{
+                    localStorage.removeItem(playbackKey(currentMovieId)); overlay.remove(); video.currentTime=0; video.play().catch(()=>{});
+                });
+            }, {once:true});
             return true;
         }
     } catch(e) {}
@@ -851,20 +869,36 @@ video.addEventListener('leavepictureinpicture',  ()=>{ isPiPActive=false; docume
 let _ctrlTimer = null;
 container.addEventListener('mousemove', ()=>{ controls.style.opacity='1'; clearTimeout(_ctrlTimer); });
 container.addEventListener('click', e=>{
+    if (Date.now()-(window._hmLastTouchHandled||0)<500) return;
     if (e.target.closest('.custom-controls')||e.target.closest('.big-play-btn')) return;
     if (e.target.closest('.gesture-indicator')) return;
     togglePlay();
     controls.style.opacity='1';
     clearTimeout(_ctrlTimer);
 });
+let lastVideoTapAt=0, lastVideoTapX=0;
 container.addEventListener('touchend', e=>{
+    window._hmLastTouchHandled=Date.now();
     if (e.target.closest('.custom-controls')||e.target.closest('.big-play-btn')) return;
     if (e.target.closest('.gesture-indicator')) return;
-    // Tap screen = toggle play/pause (like old modal)
-    togglePlay();
-    // Briefly flash controls so user sees the state change
-    controls.style.opacity='1';
-    clearTimeout(_ctrlTimer);
+    if (gestureConsumed) { gestureConsumed=false; return; }
+    const touch=e.changedTouches&&e.changedTouches[0];
+    if (!touch) return;
+    const now=Date.now(), rect=container.getBoundingClientRect(), x=touch.clientX;
+    if (now-lastVideoTapAt<280 && Math.abs(x-lastVideoTapX)<70) {
+        clearTimeout(window._hmSingleTapTimer);
+        const zone=(x-rect.left)/rect.width;
+        if (zone<0.36) skip(-10);
+        else if (zone>0.64) skip(10);
+        else togglePlay();
+        lastVideoTapAt=0;
+        showQuickMsg(zone<0.36?'−10 seconds':zone>0.64?'+10 seconds':(video.paused?'Playing':'Paused'),'info');
+    } else {
+        lastVideoTapAt=now; lastVideoTapX=x;
+        clearTimeout(window._hmSingleTapTimer);
+        window._hmSingleTapTimer=setTimeout(()=>{ if(Date.now()-lastVideoTapAt>=260) togglePlay(); },280);
+    }
+    controls.style.opacity='1'; clearTimeout(_ctrlTimer); scheduleControlsHide();
 });
 controls.addEventListener('mouseenter', ()=>{ clearTimeout(_ctrlTimer); controls.style.opacity='1'; });
 
@@ -1077,6 +1111,7 @@ function togglePip() {
 // ── Speed ────────────────────────────────────────────────────────────────────
 function setPlaybackSpeed(v) {
     video.playbackRate=v;
+    try { localStorage.setItem('hm_player_speed', String(v)); } catch(e) {}
     document.getElementById('speedLabel').textContent=v+'x';
     document.querySelectorAll('.speed-option').forEach(o=>o.classList.toggle('active',parseFloat(o.dataset.speed)===v));
     document.getElementById('speedDropdown').style.display='none';
@@ -1103,6 +1138,7 @@ function toggleSubtitleDropdown(e) {
 }
 function selectSubtitle(lang) {
     const normalized=String(lang||'off').toLowerCase();
+    try { const prefs=JSON.parse(localStorage.getItem('hm_player_prefs')||'{}'); prefs.subtitleLang=normalized; localStorage.setItem('hm_player_prefs',JSON.stringify(prefs)); } catch(e) {}
     const dd=document.getElementById('subtitleDropdown');
     dd.style.display='none';
     dd.classList.remove('player-floating-subtitle');
@@ -1134,12 +1170,16 @@ function loadCaptionTracks(captions) {
         document.getElementById('subtitleBtn').classList.remove('active');
         return;
     }
-    usable.forEach((c,i)=>{
+    // Prefer English automatically whenever an English subtitle track exists.
+    // If the source has no English track, fall back to its first available track.
+    const defaultCaption=usable.find(c=>/^en(?:[-_]|$)/i.test(c.lan)||/english/i.test(c.lanName))||usable[0];
+    usable.forEach(c=>{
         const track=document.createElement('track');
         track.kind='subtitles'; track.src=c.url;
         track.srclang=c.lan;
         track.label=c.lanName;
-        if(i===0) track.default=true;
+        if(c===defaultCaption) track.default=true;
+        track.addEventListener('load',()=>applySubtitleSettings());
         video.appendChild(track);
         if (track.track) track.track.mode='hidden';
         const div=document.createElement('div');
@@ -1148,7 +1188,7 @@ function loadCaptionTracks(captions) {
         div.innerHTML='<i class="fas fa-comment-dots"></i> '+track.label;
         list.appendChild(div);
     });
-    requestAnimationFrame(()=>selectSubtitle(usable[0].lan));
+    requestAnimationFrame(()=>selectSubtitle(defaultCaption.lan));
 }
 
 // ── Dubs ──────────────────────────────────────────────────────────────────────
@@ -1489,26 +1529,26 @@ function onEnded() {
 function showAutoPlayToast() {
     const toast=document.createElement('div');
     toast.id='apToast';
-    toast.style.cssText='position:fixed;bottom:100px;right:20px;background:rgba(0,0,0,.9);color:#fff;padding:18px;border-radius:12px;z-index:10000;border-left:4px solid #e50914;box-shadow:0 8px 30px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:10px;min-width:240px;animation:slideInRight .4s ease-out;';
+    toast.style.cssText='position:fixed;bottom:24px;right:24px;background:rgba(12,12,18,.97);color:#fff;padding:16px;border-radius:14px;z-index:10000;border:1px solid rgba(255,255,255,.12);border-left:4px solid #e50914;box-shadow:0 12px 40px rgba(0,0,0,.55);display:flex;flex-direction:column;gap:10px;width:min(340px,calc(100vw - 32px));animation:slideInRight .4s ease-out;';
     const next=episodeList[currentEpIdx+1];
     toast.innerHTML=`
-        <div style="font-weight:700;font-size:.85rem;color:#888">Up Next in 5s</div>
-        <div style="font-weight:800;font-size:1rem">Episode ${next.episode}</div>
+        <div style="font-weight:700;font-size:.85rem;color:#aaa">UP NEXT · 10 SECONDS</div>
+        <div style="font-weight:800;font-size:1rem">Season ${next.season} · Episode ${next.episode}</div>
         <div style="display:flex;gap:8px;margin-top:4px">
             <button onclick="document.getElementById('apToast').remove();clearTimeout(autoPlayTimer)" style="flex:1;padding:8px;border-radius:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;cursor:pointer;font-size:.8rem">Cancel</button>
             <button onclick="clearTimeout(autoPlayTimer);goToEpisode(episodeList[currentEpIdx+1]);document.getElementById('apToast').remove()" style="flex:1;padding:8px;border-radius:8px;background:#e50914;border:none;color:#fff;cursor:pointer;font-size:.8rem;font-weight:700">Play Now</button>
         </div>
-        <div id="apProg" style="height:3px;background:#e50914;width:100%;transition:width 5s linear"></div>`;
+        <div id="apProg" style="height:3px;background:#e50914;width:100%;transition:width 10s linear"></div>`;
     document.body.appendChild(toast);
     setTimeout(()=>{ const p=document.getElementById('apProg'); if(p) p.style.width='0%'; },100);
     autoPlayTimer=setTimeout(()=>{
         const t=document.getElementById('apToast'); if(t) t.remove();
         goToEpisode(episodeList[currentEpIdx+1]);
-    },5000);
+    },10000);
 }
 
 // ── Touch gestures: left=volume, right=brightness ────────────────────────────
-let gestureType=null, gestureStartY=0, gestureStartX=0, isGesturing=false, gestureHideTimer=null;
+let gestureType=null, gestureStartY=0, gestureStartX=0, isGesturing=false, gestureConsumed=false, gestureHideTimer=null;
 const videoWrapper=document.querySelector('.video-wrapper');
 videoWrapper.addEventListener('touchstart',e=>{
     if(e.target.closest('.custom-controls')||e.target.closest('.big-play-btn')) return;
@@ -1546,7 +1586,7 @@ videoWrapper.addEventListener('touchmove',e=>{
     }
 },{passive:false});
 videoWrapper.addEventListener('touchend',()=>{
-    if(isGesturing) gestureHideTimer=setTimeout(()=>gestureEl.classList.remove('show'),500);
+    if(isGesturing) { gestureConsumed=true; gestureHideTimer=setTimeout(()=>gestureEl.classList.remove('show'),500); }
     isGesturing=false; gestureType=null;
 },{passive:true});
 
@@ -1604,7 +1644,9 @@ async function init() {
         const mp4Idx=sources.findIndex(s=>!isDashSource(s,s.directUrl||s.cdnUrl||s.streamUrl));
         const mp4_360Idx=sources.findIndex(s=>!isDashSource(s,s.directUrl||s.cdnUrl||s.streamUrl) && String(s.quality||s.label||'').includes('360'));
         const preferIdx=dashIdx>=0 ? dashIdx : (mp4_360Idx>=0 ? mp4_360Idx : (mp4Idx>=0 ? mp4Idx : Math.max(0,sources.findIndex(s=>String(s.quality||s.label||'').includes('360')))));
-        currentSrcIdx=preferIdx;
+        const savedQuality=(()=>{try{return JSON.parse(localStorage.getItem('hm_player_prefs')||'{}').quality||''}catch(e){return ''}})();
+        const savedQualityIdx=savedQuality?sources.findIndex((source,index)=>sourceQualityLabel(source,index).toLowerCase()===savedQuality.toLowerCase()):-1;
+        currentSrcIdx=savedQualityIdx>=0?savedQualityIdx:preferIdx;
         updateQualityUI(sources, currentSrcIdx);
         loadCaptionTracks(captions);
         restorePosition();
@@ -1625,7 +1667,11 @@ async function init() {
         if (!s) return;
 
         const title  = s.name||s.title||titleHint||'Watch Movie';
+        const poster = (s.cover && s.cover.url) || s.thumbnail || '';
+        if (poster) { video.poster = poster; video.setAttribute('poster', poster); }
         const isTV   = Number(s.subjectType??s.type)===2;
+        setupPlayerChapters(s);
+        setupTimelinePreview(s);
 
         document.getElementById('watchTitle').textContent = title+(season?' S'+season+(episode?'E'+episode:''):'');
         document.title = title+(season?' S'+season+'E'+(episode||1):'')+' - HM CINEMA';
@@ -1649,26 +1695,15 @@ async function init() {
         var dlBtnEl = document.getElementById("watchDlBtn");
         if (dlBtnEl) dlBtnEl.style.display = "";
 
+        // Keep previous/next episode controls in the player, but do not
+        // render a second episode picker here. Episode selection lives on
+        // the movie details page.
         if (isTV) {
             const resource=(json.data&&json.data.resource)||s.resource||{};
             const seasons=[resource.seasons,s.resource&&s.resource.seasons,s.seasons,s.seasonList]
                 .find(candidate=>Array.isArray(candidate)&&candidate.length>0)||[];
-            if (seasons.length) {
-                const navEl=document.getElementById('watchEpNav');
-                const grid=document.getElementById('epNavGrid');
-                const tabsEl=document.getElementById('epSeasonTabs');
-
-                // Build season tabs
-                let tabsHtml='';
-                seasons.forEach(sv=>{
-                    const sNum=sv.se||sv.season||1;
-                    const active=sNum===season;
-                    tabsHtml+=`<a class="ep-season-tab${active?' active':''}" href="/watch/${movieId}?season=${sNum}&episode=1&title=${encodeURIComponent(title)}">Season ${sNum}</a>`;
-                });
-                tabsEl.innerHTML=tabsHtml;
-
-                // Build episode grid for current season
-                const curSe=seasons.find(sv=>(sv.se||sv.season)===season)||seasons[0];
+            const curSe=seasons.find(sv=>(sv.se||sv.season)===season)||seasons[0];
+            if (curSe) {
                 const allEp=Array.isArray(curSe.allEp)
                     ? curSe.allEp
                     : (typeof curSe.allEp==='string' ? curSe.allEp.split(',') : []);
@@ -1679,20 +1714,10 @@ async function init() {
                 const episodeNumbers=listedEpisodes.length
                     ? listedEpisodes
                     : (Number.isInteger(epCnt)&&epCnt>0 ? Array.from({length:Math.min(epCnt,500)},(_,i)=>i+1) : []);
-                const se=curSe.se||curSe.season||1;
-
-                let epHtml='';
-                for (const ep of episodeNumbers) {
-                    const cur=(ep===(episode||1)&&se===season);
-                    epHtml+=`<a class="ep-nav-btn${cur?' current':''}" href="/watch/${movieId}?season=${se}&episode=${ep}&title=${encodeURIComponent(title)}">${ep}</a>`;
-                }
-                grid.innerHTML=epHtml;
-                navEl.style.display='block';
-
+                const se=curSe.se||curSe.season||season||1;
                 episodeList=episodeNumbers.map(ep=>({season:se,episode:ep}));
                 const currentIdx=episodeNumbers.indexOf(episode||episodeNumbers[0]);
                 currentEpIdx=Math.max(0,currentIdx);
-
                 if (episodeList.length>1) {
                     if (currentEpIdx>0) document.getElementById('prevBtn').style.display='';
                     if (currentEpIdx<episodeList.length-1) document.getElementById('nextBtn').style.display='';
@@ -1701,6 +1726,187 @@ async function init() {
         }
     }
 }
+
+
+// ── HM CINEMA player enhancements (responsive desktop + touch) ────────────────
+const hmPlayerPrefs = (() => { try { return JSON.parse(localStorage.getItem('hm_player_prefs')||'{}'); } catch(e) { return {}; } })();
+function savePlayerPrefs() { try { localStorage.setItem('hm_player_prefs', JSON.stringify(hmPlayerPrefs)); } catch(e) {} }
+function setupControlsAutoHide() {
+    const reveal=()=>{ controls.style.opacity='1'; controls.style.pointerEvents='auto'; clearTimeout(_ctrlTimer); scheduleControlsHide(); };
+    window.scheduleControlsHide = () => {
+        clearTimeout(_ctrlTimer);
+        if (video.paused || document.fullscreenElement!==container) return;
+        _ctrlTimer=setTimeout(()=>{ controls.style.opacity='0'; controls.style.pointerEvents='none'; },3200);
+    };
+    container.addEventListener('mousemove',reveal,{passive:true});
+    container.addEventListener('touchstart',reveal,{passive:true});
+    controls.addEventListener('mouseenter',()=>clearTimeout(_ctrlTimer));
+    controls.addEventListener('mouseleave',()=>scheduleControlsHide());
+    video.addEventListener('play',scheduleControlsHide);
+    video.addEventListener('pause',()=>{clearTimeout(_ctrlTimer);controls.style.opacity='1';controls.style.pointerEvents='auto';});
+    document.addEventListener('fullscreenchange',()=>{controls.style.opacity='1';controls.style.pointerEvents='auto';scheduleControlsHide();});
+}
+function setupPlayerPreferences() {
+    const speed=Number(hmPlayerPrefs.speed||localStorage.getItem('hm_player_speed')||1);
+    if ([.25,.5,.75,1,1.25,1.5,1.75,2].includes(speed)) setPlaybackSpeed(speed);
+    const vol=document.getElementById('playerVolumeSlider');
+    const mute=document.getElementById('volumeSliderMute');
+    if (typeof hmPlayerPrefs.volume==='number') video.volume=Math.max(0,Math.min(1,hmPlayerPrefs.volume));
+    if (typeof hmPlayerPrefs.muted==='boolean') video.muted=hmPlayerPrefs.muted;
+    if (vol) vol.value=String(Math.round(video.volume*100));
+    const update=()=>{
+        if(vol) vol.value=String(Math.round(video.volume*100));
+        if(mute) mute.innerHTML=(video.muted||video.volume===0)?'<i class="fas fa-volume-mute"></i>':'<i class="fas fa-volume-up"></i>';
+        hmPlayerPrefs.volume=video.volume; hmPlayerPrefs.muted=video.muted; savePlayerPrefs();
+        updateMuteButton();
+    };
+    vol?.addEventListener('input',()=>{video.volume=Number(vol.value)/100;if(video.volume>0)video.muted=false;update();});
+    mute?.addEventListener('click',()=>{video.muted=!video.muted;update();});
+    video.addEventListener('volumechange',update);
+    update();
+    const quality=hmPlayerPrefs.quality;
+    if (quality) video._hmPreferredQuality=quality;
+}
+function setupNetworkIndicator() {
+    const time=document.getElementById('timeDisplay');
+    if(!time)return;
+    const indicator=document.createElement('span');
+    indicator.id='playerNetworkStatus'; indicator.className='player-network-status';
+    indicator.textContent='Checking connection';
+    time.insertAdjacentElement('afterend',indicator);
+    const update=()=>{
+        const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+        const type=c?.effectiveType;
+        indicator.textContent=type?('Network '+type.toUpperCase()):'Network status';
+        indicator.title=c?('Estimated connection: '+(type||'unknown')+(c.downlink?' · '+c.downlink+' Mbps':'')):'Connection quality unavailable in this browser';
+        indicator.classList.toggle('network-slow',Boolean(type&&['slow-2g','2g'].includes(type)));
+    };
+    update();
+    (navigator.connection||navigator.mozConnection||navigator.webkitConnection)?.addEventListener?.('change',update);
+}
+function setupPlayerChapters(info) {
+    const btn=document.getElementById('skipIntroBtn');
+    if(!btn)return;
+    const chapters=Array.isArray(info.chapters)?info.chapters:[];
+    let intro=chapters.find(c=>/intro|recap/i.test(String(c.type||c.title||c.name||'')));
+    let start=Number(intro?.start??info.introStart??info.intro_start);
+    let end=Number(intro?.end??info.introEnd??info.intro_end);
+    if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start){btn.hidden=true;return;}
+    btn.textContent=/recap/i.test(String(intro?.type||intro?.title||intro?.name||''))?'Skip Recap':'Skip Intro';
+    btn.hidden=false;
+    btn.addEventListener('click',()=>{video.currentTime=end;btn.hidden=true;});
+    video.addEventListener('timeupdate',()=>{btn.hidden=!(video.currentTime>=start&&video.currentTime<end);});
+}
+let hmTimelineCues=[];
+function setupTimelinePreview(info) {
+    const vtt=info.thumbnailVtt||info.previewVtt||info.spriteVtt||info.thumbnail?.vtt||'';
+    if(!vtt)return;
+    fetch(vtt).then(r=>r.ok?r.text():'').then(text=>{
+        if(!text)return;
+        const base=new URL(vtt,location.href);
+        const newline=String.fromCharCode(10);
+        hmTimelineCues=text.split(newline+newline).map(block=>{
+            const lines=block.split(newline); const time=lines.find(x=>x.includes('-->'));
+            const image=lines.find(x=>['.jpg','.jpeg','.png','.webp'].some(ext=>x.toLowerCase().includes(ext)));
+            if(!time||!image)return null;
+            const parts=time.split('-->').map(x=>x.trim().split(' ')[0]);
+            const toSec=x=>{const a=x.split(':').map(Number);return a.reduce((v,n)=>v*60+n,0);};
+            const src=image.split('#')[0], rect=(image.split('#xywh=')[1]||'').split(',').map(Number);
+            return {start:toSec(parts[0]),end:toSec(parts[1]),url:new URL(src,base).href,rect};
+        }).filter(Boolean);
+    }).catch(()=>{});
+}
+function setupTimelineInteraction() {
+    const preview=document.getElementById('timelinePreview'),img=document.getElementById('timelinePreviewImage'),label=document.getElementById('timelinePreviewTime');
+    const update=e=>{
+        if(!video.duration||!hmTimelineCues.length)return;
+        const rect=progContainer.getBoundingClientRect(),x=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)),t=x*video.duration;
+        const cue=hmTimelineCues.find(c=>t>=c.start&&t<=c.end);
+        if(!cue)return;
+        img.src=cue.url;img.style.objectPosition='center';
+        if(cue.rect.length===4){img.style.objectFit='none';img.style.width=cue.rect[2]+'px';img.style.height=cue.rect[3]+'px';img.style.objectPosition=(-cue.rect[0])+'px '+(-cue.rect[1])+'px';}
+        else{img.style.width='160px';img.style.height='90px';img.style.objectFit='cover';}
+        label.textContent=fmt(t);
+        preview.style.left=Math.max(80,Math.min(rect.width-80,e.clientX-rect.left))+'px';
+        preview.classList.add('visible');
+    };
+    progContainer.addEventListener('pointermove',update);
+    progContainer.addEventListener('pointerleave',()=>preview.classList.remove('visible'));
+    progContainer.addEventListener('touchstart',e=>{if(e.touches[0])update(e.touches[0]);},{passive:true});
+    progContainer.addEventListener('touchmove',e=>{if(e.touches[0])update(e.touches[0]);},{passive:true});
+    progContainer.addEventListener('touchend',()=>preview.classList.remove('visible'),{passive:true});
+}
+function showPlayerDialog(title,body,actions) {
+    const overlay=document.createElement('div');overlay.className='player-resume-overlay';
+    overlay.innerHTML='<div class="player-dialog"><button class="player-dialog-close" type="button" aria-label="Close">×</button><h3>'+title+'</h3>'+body+'<div class="player-dialog-actions"></div></div>';
+    const row=overlay.querySelector('.player-dialog-actions');
+    actions.forEach(a=>{const b=document.createElement('button');b.type='button';b.textContent=a.label;b.className=a.primary?'player-action-primary':'';b.addEventListener('click',()=>{overlay.remove();a.run?.();});row.appendChild(b);});
+    overlay.querySelector('.player-dialog-close').addEventListener('click',()=>overlay.remove());
+    overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+    document.body.appendChild(overlay);return overlay;
+}
+function openSubtitleSettings() {
+    const active=Array.from(video.textTracks||[]).find(t=>t.mode==='showing');
+    const currentSize=hmPlayerPrefs.subtitleSize||100, currentBg=hmPlayerPrefs.subtitleBg!==false, currentDelay=hmPlayerPrefs.subtitleDelay||0;
+    const body='<label>Subtitle size <strong id="hmSubSizeValue">'+currentSize+'%</strong><input id="hmSubSize" type="range" min="70" max="160" value="'+currentSize+'"></label><label class="hm-setting-check"><input id="hmSubBg" type="checkbox" '+(currentBg?'checked':'')+'> Dark subtitle background</label><label>Subtitle delay <strong id="hmSubDelayValue">'+currentDelay.toFixed(1)+'s</strong><input id="hmSubDelay" type="range" min="-5" max="5" step="0.5" value="'+currentDelay+'"></label><p class="player-dialog-note">Changes apply to browser-rendered subtitle tracks. Some external subtitle formats may limit styling.</p>';
+    const overlay=showPlayerDialog('Subtitle appearance',body,[{label:'Done',primary:true,run:()=>applySubtitleSettings()}]);
+    const size=overlay.querySelector('#hmSubSize'),bg=overlay.querySelector('#hmSubBg'),delay=overlay.querySelector('#hmSubDelay');
+    size.addEventListener('input',()=>{overlay.querySelector('#hmSubSizeValue').textContent=size.value+'%';applySubtitleSettings(size.value,bg.checked,delay.value);});
+    bg.addEventListener('change',()=>applySubtitleSettings(size.value,bg.checked,delay.value));
+    delay.addEventListener('input',()=>{overlay.querySelector('#hmSubDelayValue').textContent=Number(delay.value).toFixed(1)+'s';applySubtitleSettings(size.value,bg.checked,delay.value);});
+}
+function applySubtitleSettings(size=hmPlayerPrefs.subtitleSize||100,bg=hmPlayerPrefs.subtitleBg!==false,delay=hmPlayerPrefs.subtitleDelay||0) {
+    hmPlayerPrefs.subtitleSize=Number(size);hmPlayerPrefs.subtitleBg=Boolean(bg);hmPlayerPrefs.subtitleDelay=Number(delay);savePlayerPrefs();
+    let style=document.getElementById('hmSubtitleCustomStyle');
+    if(!style){style=document.createElement('style');style.id='hmSubtitleCustomStyle';document.head.appendChild(style);}
+    style.textContent='video::cue{font-size:'+Number(size)+'% !important;'+(bg?'background:rgba(0,0,0,.72);':'background:transparent;')+'}';
+    Array.from(video.textTracks||[]).forEach(track=>{
+        if(!track._hmOriginalCueTimes&&track.cues){track._hmOriginalCueTimes=Array.from(track.cues).map(c=>[c,c.startTime,c.endTime]);}
+        (track._hmOriginalCueTimes||[]).forEach(([cue,start,end])=>{try{cue.startTime=Math.max(0,start+Number(delay));cue.endTime=Math.max(cue.startTime+.05,end+Number(delay));}catch(e){}});
+    });
+}
+async function sharePlayerTitle() {
+    const url=location.href;
+    const title=document.getElementById('watchTitle')?.textContent||document.title;
+    try{if(navigator.share)await navigator.share({title,text:'Watch '+title+' on HM CINEMA',url});else if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);showQuickMsg('Link copied to clipboard','success');}else showQuickMsg('Sharing is not supported in this browser','error');}
+    catch(e){if(e.name!=='AbortError')showQuickMsg('Could not share this link','error');}
+}
+function openPlaybackReport() {
+    const reasons=['Video will not play','Video keeps buffering','Audio problem','Subtitle problem','Wrong language or episode','Video quality problem','Other'];
+    const body='<label>What went wrong?<select id="hmReportReason">'+reasons.map(x=>'<option>'+x+'</option>').join('')+'</select></label><label>Details (optional)<textarea id="hmReportDetails" maxlength="500" rows="3" placeholder="Tell us what happened..."></textarea></label><p class="player-dialog-note">The report includes the title ID, episode and selected quality to help diagnose the issue.</p>';
+    const overlay=showPlayerDialog('Report a playback problem',body,[{label:'Cancel',run:()=>{}},{label:'Send report',primary:true,run:async()=>{
+        const reason=overlay.querySelector('#hmReportReason')?.value||'Other',details=overlay.querySelector('#hmReportDetails')?.value||'';
+        try{const res=await fetch('/api/player-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({movieId:currentMovieId,title:window._watchTitle||'',season:currentSeason,episode:currentEpisode,quality:document.getElementById('qualityBtnLabel')?.textContent||'',reason,details,playbackTime:Math.floor(video.currentTime||0),userAgent:navigator.userAgent.slice(0,180)})});if(!res.ok)throw new Error('Report failed');showQuickMsg('Thanks — your report was sent','success');}
+        catch(e){showQuickMsg('Could not send report. Please try again later.','error');}
+    }}]);
+}
+function retryCurrentStream() {
+    document.getElementById('watchError').style.display='none';spinner.style.display='block';
+    if(!allSources.length){init();return;}
+    currentSrcIdx=Math.max(0,Math.min(currentSrcIdx,allSources.length-1));loadStream(allSources[currentSrcIdx]);
+}
+function setupPlayerEnhancements() {
+    setupControlsAutoHide();setupPlayerPreferences();setupNetworkIndicator();setupTimelineInteraction();
+    const loadingText=document.createElement('span');loadingText.id='hmLoadingPercent';loadingText.className='hm-loading-percent';loadingText.textContent='Loading video…';spinner?.appendChild(loadingText);
+    const updateLoading=()=>{
+        if(!video.duration||!video.buffered.length)return;
+        let end=0;for(let i=0;i<video.buffered.length;i++){if(video.buffered.start(i)<=video.currentTime+1)end=Math.max(end,video.buffered.end(i));}
+        const pct=Math.max(0,Math.min(100,Math.round(end/video.duration*100)));
+        loadingText.textContent='Buffered '+pct+'%';
+    };
+    video.addEventListener('progress',updateLoading);video.addEventListener('loadedmetadata',updateLoading);video.addEventListener('waiting',()=>{loadingText.textContent='Buffering…';});
+    video.addEventListener('playing',()=>{loadingText.textContent='Ready';});
+    document.getElementById('subtitleStyleBtn')?.addEventListener('click',openSubtitleSettings);
+    document.getElementById('sharePlayerBtn')?.addEventListener('click',sharePlayerTitle);
+    document.getElementById('reportPlayerBtn')?.addEventListener('click',openPlaybackReport);
+    video.addEventListener('play',()=>{hmPlayerPrefs.speed=video.playbackRate;savePlayerPrefs();});
+    video.addEventListener('ratechange',()=>{hmPlayerPrefs.speed=video.playbackRate;savePlayerPrefs();});
+    video.addEventListener('loadedmetadata',()=>applySubtitleSettings());
+    video.addEventListener('error',()=>{if(allSources.length)document.getElementById('watchErrorMsg').textContent='This stream could not be played. Try again or report the problem.';});
+    const err=document.getElementById('watchError');
+    if(err&&!document.getElementById('watchRetryBtn')){const b=document.createElement('button');b.id='watchRetryBtn';b.className='watch-retry-btn';b.textContent='Retry playback';b.onclick=retryCurrentStream;err.appendChild(b);}
+}
+setupPlayerEnhancements();
 
 init();
 

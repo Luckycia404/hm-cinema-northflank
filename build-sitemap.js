@@ -122,7 +122,9 @@ function slugify(s) {
 }
 
 function urlFor(item) {
-    const type = item.subjectType === 2 ? 'tv' : 'movie';
+    const subjectType = Number(item && item.subjectType);
+    const type = subjectType === 2 ? 'tv' : (subjectType === 6 ? 'music' : (subjectType === 1 ? 'movie' : null));
+    if (!type || !item.subjectId) return null;
     const slug = slugify(item.title);
     return `/${type}/${item.subjectId}` + (slug ? `/${slug}` : '');
 }
@@ -208,9 +210,20 @@ async function build() {
     };
     addUrl({ loc: `${CANONICAL_BASE}/`,       priority: '1.0', changefreq: 'daily' });
     addUrl({ loc: `${CANONICAL_BASE}/sports`, priority: '0.8', changefreq: 'hourly' });
+    for (const landingPath of ['/watch-movies-online', '/latest-movies-online', '/moviebox-alternatives', '/free-tv-series-online']) {
+        addUrl({ loc: `${CANONICAL_BASE}${landingPath}`, priority: '0.8', changefreq: 'weekly' });
+    }
 
     for (const item of seen.values()) {
-        const loc = CANONICAL_BASE + urlFor(item);
+        const itemPath = urlFor(item);
+        if (!itemPath) continue; // Never invent a movie URL for an unknown content type.
+        // If this ID existed under an old/wrong content prefix, retire that URL
+        // so the sitemap only advertises the correctly typed canonical path.
+        const idPattern = new RegExp('/(?:movie|tv|music)/' + String(item.subjectId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:/|$)');
+        for (const oldLoc of existingUrls.keys()) {
+            if (idPattern.test(oldLoc) && oldLoc !== CANONICAL_BASE + itemPath) existingUrls.delete(oldLoc);
+        }
+        const loc = CANONICAL_BASE + itemPath;
         addUrl({
             loc,
             priority: '0.7',
@@ -218,6 +231,24 @@ async function build() {
             // Only claim a recent modification for URLs newly discovered by this crawl.
             ...(existingUrls.has(loc) ? {} : { lastmod: today }),
         });
+        // The dedicated player page is the actual video watch page. Keep it
+        // discoverable separately from the movie/series detail page.
+        if ([1, 2].includes(Number(item.subjectType))) {
+            const videoThumbnail = (item.stills && item.stills.url) || (item.trailer && item.trailer.cover && item.trailer.cover.url) || (item.cover && item.cover.url) || item.thumbnail || '';
+            const videoDescription = String(item.description || `Watch ${item.title || 'this title'} on HM CINEMA.`).replace(/\s+/g, ' ').trim().slice(0, 500);
+            addUrl({
+                loc: `${CANONICAL_BASE}/watch/${encodeURIComponent(item.subjectId)}`,
+                priority: '0.65',
+                changefreq: 'weekly',
+                ...(videoThumbnail ? { video: {
+                    title: item.title || 'Watch online',
+                    description: videoDescription,
+                    thumbnail: videoThumbnail,
+                    contentLoc: `${CANONICAL_BASE}/api/video/${encodeURIComponent(item.subjectId)}`,
+                    duration: Number(item.duration) > 0 ? Math.round(Number(item.duration)) : 0,
+                } } : {}),
+            });
+        }
     }
 
     // The upstream trending endpoint currently reports hasMore=true without a
@@ -227,23 +258,43 @@ async function build() {
     for (const loc of existingUrls.keys()) {
         if (!loc.startsWith(CANONICAL_BASE + '/')) continue;
         addUrl({ loc, priority: '0.6', changefreq: 'weekly' });
+        // Preserve a dedicated watch-page URL for every known movie or TV
+        // detail page, even when it is outside the current trending crawl.
+        const watchMatch = loc.match(/\/(?:movie|tv)\/(\d+)(?:\/|$)/);
+        if (watchMatch) {
+            addUrl({
+                loc: `${CANONICAL_BASE}/watch/${encodeURIComponent(watchMatch[1])}`,
+                priority: '0.65',
+                changefreq: 'weekly',
+            });
+        }
     }
     if (existingUrls.size && urls.length < existingUrls.size) {
         console.warn(`[sitemap] Preserved ${existingUrls.size} existing URLs; current upstream crawl returned ${urls.length}`);
     }
 
-    const body = urls.map(u =>
-        '  <url>\n' +
-        `    <loc>${escAttr(u.loc)}</loc>\n` +
-        (u.lastmod ? `    <lastmod>${u.lastmod}</lastmod>\n` : '') +
-        `    <priority>${u.priority}</priority>\n` +
-        `    <changefreq>${u.changefreq}</changefreq>\n` +
-        '  </url>'
-    ).join('\n');
+    const body = urls.map(u => {
+        const videoXml = u.video ? (
+            '    <video:video>\n' +
+            `      <video:thumbnail_loc>${escAttr(u.video.thumbnail)}</video:thumbnail_loc>\n` +
+            `      <video:title>${escAttr(u.video.title)}</video:title>\n` +
+            `      <video:description>${escAttr(u.video.description)}</video:description>\n` +
+            `      <video:content_loc>${escAttr(u.video.contentLoc)}</video:content_loc>\n` +
+            (u.video.duration ? `      <video:duration>${u.video.duration}</video:duration>\n` : '') +
+            '    </video:video>\n'
+        ) : '';
+        return '  <url>\n' +
+            `    <loc>${escAttr(u.loc)}</loc>\n` +
+            (u.lastmod ? `    <lastmod>${u.lastmod}</lastmod>\n` : '') +
+            `    <priority>${u.priority}</priority>\n` +
+            `    <changefreq>${u.changefreq}</changefreq>\n` +
+            videoXml +
+            '  </url>';
+    }).join('\n');
 
     const xml =
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n' +
         body + '\n' +
         '</urlset>\n';
 

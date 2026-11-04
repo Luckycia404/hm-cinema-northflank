@@ -54,6 +54,61 @@ async function fetchSportsNowMatches(signal) {
     };
 }
 
+function sportsScoreNameKey(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/\b(fc|cf|sc|ac|afc|club|football|de|the|stade)\b/g, ' ')
+        .replace(/\brennes\b/g, 'rennais')
+        .replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+}
+
+function sportsScoreTeamNamesMatch(a, b) {
+    if (!a || !b) return false;
+    if (a === b || a.includes(b) || b.includes(a)) return true;
+    // Some providers use different official/local spellings (e.g. Rennes / Rennais).
+    const aa = a.split(' '), bb = b.split(' ');
+    return aa.some(x => bb.some(y => {
+        if (Math.min(x.length, y.length) < 6) return false;
+        let prev = Array.from({ length: y.length + 1 }, (_, i) => i);
+        for (let i = 1; i <= x.length; i++) {
+            const cur = [i];
+            for (let j = 1; j <= y.length; j++) cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+            prev = cur;
+        }
+        return prev[y.length] <= 2;
+    }));
+}
+
+async function applyFootballLiveGamesScores(matches) {
+    if (!Array.isArray(matches) || !matches.length) return matches || [];
+    try {
+        const response = await fetch('/api/sports/scores', { cache: 'no-store' });
+        if (!response.ok) return matches;
+        const payload = await response.json();
+        if (!payload || payload.ok !== true || !Array.isArray(payload.matches)) return matches;
+        const liveScores = payload.matches.filter(row => row && row.status === 'live' && row.homeTeam && row.awayTeam
+            && Number.isFinite(Number(row.homeTeam.score)) && Number.isFinite(Number(row.awayTeam.score)));
+        return matches.map(match => {
+            if (!match || typeof match !== 'object') return match;
+            const home = sportsNowTeam(match.team1 || match.homeTeam);
+            const away = sportsNowTeam(match.team2 || match.awayTeam);
+            const homeKey = sportsScoreNameKey(home.name);
+            const awayKey = sportsScoreNameKey(away.name);
+            if (!homeKey || !awayKey) return match;
+            const verified = liveScores.find(row => {
+                const rh = sportsScoreNameKey(row.homeTeam.name);
+                const ra = sportsScoreNameKey(row.awayTeam.name);
+                return sportsScoreTeamNamesMatch(rh, homeKey) && sportsScoreTeamNamesMatch(ra, awayKey);
+            });
+            if (!verified) return match;
+            const nextHome = { ...home, score: Number(verified.homeTeam.score) };
+            const nextAway = { ...away, score: Number(verified.awayTeam.score) };
+            return { ...match, team1: { ...(match.team1 || {}), score: nextHome.score }, team2: { ...(match.team2 || {}), score: nextAway.score }, homeTeam: nextHome, awayTeam: nextAway, _verifiedScoreSource: 'Football LiveGames' };
+        });
+    } catch (_) {
+        return matches;
+    }
+}
+
 async function fetchSportsNowMatch(matchId) {
     const res = await fetch(SPORTSNOW_MATCH_DETAIL + encodeURIComponent(matchId), { cache: 'no-store' });
     const payload = await res.json().catch(() => null);
@@ -80,7 +135,9 @@ function sportsNowTeam(team) {
     return {
         name: String(t.name || t.nameI18n || team || ''),
         logo: typeof t.avatar === 'string' ? t.avatar : '',
-        score: t.score != null ? t.score : (t.regularScore != null ? t.regularScore : '')
+        score: t.score != null ? t.score : (t.regularScore != null ? t.regularScore : ''),
+        abbreviation: String(t.abbreviation || ''),
+        id: String(t.id || '')
     };
 }
 
@@ -127,15 +184,21 @@ function normalizeSportsNowMatch(m) {
 let sportsHls = null;
 let currentSportsFilter = 'all';
 let sportsLoaded = false;
+let sportsMatchCache = [];
 let sportsAutoRefreshTimer = null;
 const SPORTS_AUTO_REFRESH_MS = 30000; // 30s — keeps live scores fresh
 
 // Silent refresh: re-fetch + re-render without flashing the loading spinner.
 async function autoRefreshSports() {
     if (document.hidden) return; // tab in background — skip
-    const sportsPage = document.getElementById('sportsPage');
-    if (!sportsPage || sportsPage.style.display === 'none') return;
+    // The standalone /sports page uses #sportsGrid, not the homepage's old
+    // #sportsPage wrapper. Check the real grid so the 30s refresh works here.
+    const grid = document.getElementById('sportsGrid');
+    if (!grid || grid.offsetParent === null) return;
     await loadSports(null, currentSportsFilter, /*silent=*/true);
+    if (document.getElementById('liveSportsModal')?.classList.contains('lsm-open')) {
+        renderSportsNextMatches(sportsCurrent.matchId);
+    }
 }
 
 function startSportsAutoRefresh() {
@@ -186,7 +249,7 @@ async function loadHomeSportsRail() {
         const _t1 = setTimeout(() => _ctrl1.abort(), 8000);
         const result = await fetchSportsNowMatches(_ctrl1.signal);
         clearTimeout(_t1);
-        let matches = result.list;
+        let matches = await applyFootballLiveGamesScores(result.list);
 
         // Treat as live ONLY when:
         //   - upstream status says so AND
@@ -327,7 +390,7 @@ function buildRailCard(m) {
     const _rleague = srailEscape(typeof m.league === 'string' ? m.league : (m.league && m.league.name ? m.league.name : ''));
     const _hasHighlights = Array.isArray(m.highlightItems || m.highlights) && (m.highlightItems || m.highlights).length > 0;
     const action = isLive
-        ? '<button class="srail-watch" data-mid="' + _rmid + '" data-title="' + _rtitle + '" data-league="' + _rleague + '" onclick="watchFootballById(this.dataset.mid,this.dataset.title,this.dataset.league)">' +
+        ? '<button class="srail-watch" data-mid="' + _rmid + '" onclick="window.location.href=&quot;/sports?watch=&quot;+encodeURIComponent(this.dataset.mid)">' +
             '<i class="fas fa-play"></i> Watch Live</button>'
         : !isUpcoming && _hasHighlights
             ? '<div class="srail-actions">' +
@@ -381,7 +444,9 @@ async function loadSports(tabEl, filter, silent) {
         clearTimeout(_t2);
 
         sportsLoaded = true;
-        let matches = result.list.map(normalizeSportsNowMatch);
+        const scoredList = await applyFootballLiveGamesScores(result.list);
+        sportsMatchCache = scoredList.map(normalizeSportsNowMatch);
+        let matches = sportsMatchCache.slice();
         if (filter === 'live') {
             matches = matches.filter(m => (m.status === 'live' || m.status === 'halftime') && !sportsIsFinished(m));
         } else if (filter === 'upcoming') {
@@ -431,7 +496,10 @@ async function loadSports(tabEl, filter, silent) {
 
         grid.innerHTML = matches.map(m => buildMatchCard(m)).join('');
     } catch(e) {
-        grid.innerHTML = '<div class="sports-empty"><i class="fas fa-exclamation-triangle"></i><p>Could not load matches. Check your connection.</p></div>';
+        // Keep the last good scores visible if a background refresh briefly fails.
+        if (!silent) {
+            grid.innerHTML = '<div class="sports-empty"><i class="fas fa-exclamation-triangle"></i><p>Could not load matches. Check your connection.</p></div>';
+        }
     }
 }
 
@@ -538,16 +606,29 @@ function ensureLiveSportsModal() {
     const css = `
     #liveSportsModal{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;}
     #liveSportsModal.lsm-open{display:flex;}
-    #liveSportsModal .lsm-shell{position:relative;width:min(1100px,95vw);background:#0b0b0b;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);}
-    #liveSportsModal .lsm-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(90deg,#1a0000,#0b0b0b);border-bottom:1px solid #222;}
-    #liveSportsModal .lsm-title{color:#fff;font-weight:600;font-size:15px;display:flex;align-items:center;gap:10px;}
-    #liveSportsModal .lsm-live-dot{width:8px;height:8px;border-radius:50%;background:#ff2d2d;box-shadow:0 0 0 0 rgba(255,45,45,.7);animation:lsm-pulse 1.4s infinite;}
+    #liveSportsModal{padding:18px;overflow-y:auto;}
+    #liveSportsModal .lsm-shell{position:relative;width:min(1120px,100%);max-height:calc(100dvh - 36px);overflow-y:auto;background:#07110c;border:1px solid rgba(255,255,255,.09);border-radius:14px;box-shadow:0 18px 55px rgba(0,0,0,.55);}
+    #liveSportsModal .lsm-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 17px;background:#0b1911;border-bottom:1px solid rgba(255,255,255,.08);}
+    #liveSportsModal .lsm-title{color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap;}
+    #liveSportsModal .lsm-live-dot{width:8px;height:8px;border-radius:50%;background:#ff2d2d;box-shadow:0 0 0 0 rgba(255,45,45,.7);animation:lsm-pulse 1.4s infinite;flex:0 0 auto;}
+    #liveSportsModal .lsm-live-dot.is-static{background:#87968c;box-shadow:none;animation:none;}
     @keyframes lsm-pulse{0%{box-shadow:0 0 0 0 rgba(255,45,45,.7)}70%{box-shadow:0 0 0 10px rgba(255,45,45,0)}100%{box-shadow:0 0 0 0 rgba(255,45,45,0)}}
     #liveSportsModal .lsm-league{color:#9aa0a6;font-size:12px;margin-left:6px;}
     #liveSportsModal .lsm-close{background:transparent;border:0;color:#fff;font-size:22px;cursor:pointer;padding:4px 10px;line-height:1;}
     #liveSportsModal .lsm-close:hover{color:#ff5252;}
-    #liveSportsModal .lsm-video-wrap{position:relative;background:#000;aspect-ratio:16/9;}
-    #liveSportsModal video{width:100%;height:100%;display:block;background:#000;}
+    #liveSportsModal .lsm-video-wrap{position:relative;background:#000;aspect-ratio:16/9;max-height:68vh;}
+    #liveSportsModal video{width:100%;height:100%;display:block;background:#000;object-fit:contain;}
+    #liveSportsModal .lsm-matchbar{display:flex;align-items:center;justify-content:center;gap:clamp(12px,4vw,42px);padding:20px 18px 16px;background:linear-gradient(180deg,#0b1911,#08120c);}
+    #liveSportsModal .lsm-side{display:flex;align-items:center;gap:11px;min-width:0;flex:1;}
+    #liveSportsModal .lsm-side:last-child{flex-direction:row-reverse;text-align:right;}
+    #liveSportsModal .lsm-team-logo{width:clamp(38px,5vw,58px);height:clamp(38px,5vw,58px);object-fit:contain;flex:0 0 auto;}
+    #liveSportsModal .lsm-team-fallback{width:clamp(38px,5vw,58px);height:clamp(38px,5vw,58px);display:grid;place-items:center;border-radius:50%;background:#14251a;color:#a9c3b2;font-size:18px;flex:0 0 auto;}
+    #liveSportsModal .lsm-team-name{font-size:clamp(12px,1.8vw,16px);font-weight:750;color:#f5fff8;line-height:1.25;overflow-wrap:anywhere;}
+    #liveSportsModal .lsm-scoreline{display:flex;align-items:center;gap:10px;flex:0 0 auto;font-size:clamp(25px,4vw,36px);font-weight:850;letter-spacing:.02em;color:#fff;font-variant-numeric:tabular-nums;}
+    #liveSportsModal .lsm-score-dash{font-size:19px;color:#718278;font-weight:500;}
+    #liveSportsModal .lsm-matchmeta{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;padding:0 16px 15px;background:#08120c;color:#92a79a;font-size:11px;text-align:center;}
+    #liveSportsModal .lsm-matchstate{color:#e7f6eb;background:rgba(29,219,106,.12);border:1px solid rgba(29,219,106,.22);border-radius:20px;padding:4px 9px;font-weight:750;letter-spacing:.04em;}
+    #liveSportsModal .lsm-matchstate.is-live{color:#ff777f;background:rgba(255,59,78,.1);border-color:rgba(255,59,78,.25);}
     #liveSportsModal .lsm-loading-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#ddd;font-size:13px;text-align:center;background:rgba(0,0,0,.3);pointer-events:none;}
     #liveSportsModal .lsm-loading-msg-text{padding:7px 12px;border-radius:6px;background:rgba(0,0,0,.55);}
     #liveSportsModal .lsm-start-btn{display:none;border:1px solid rgba(255,82,82,.7);border-radius:7px;background:#c62828;color:#fff;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;pointer-events:auto;box-shadow:0 4px 16px rgba(0,0,0,.35);}
@@ -555,11 +636,40 @@ function ensureLiveSportsModal() {
     #liveSportsModal .lsm-error{position:absolute;inset:auto 0 0 0;background:rgba(20,0,0,.92);color:#fff;padding:14px 18px;font-size:14px;text-align:center;display:none;border-top:1px solid #4a0000;}
     #liveSportsModal .lsm-error.lsm-show{display:block;}
     #liveSportsModal .lsm-minute{display:inline-flex;align-items:center;background:rgba(255,45,45,.15);border:1px solid rgba(255,45,45,.35);color:#ff6b6b;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:8px;min-width:36px;justify-content:center;letter-spacing:.03em;}
-    #liveSportsModal .lsm-streams{display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 16px;background:#0d0d0d;border-top:1px solid #1e1e1e;}
-    #liveSportsModal .lsm-streams{display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 16px;background:#0d0d0d;border-top:1px solid #1e1e1e;}
+    #liveSportsModal .lsm-streams{display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px;background:#0b1710;border-top:1px solid rgba(255,255,255,.07);}
     #liveSportsModal .lsm-stream-btn{background:#1a1a1a;border:1px solid #2e2e2e;color:#bbb;border-radius:6px;padding:4px 11px;font-size:12px;cursor:pointer;font-weight:600;transition:all .15s;}
     #liveSportsModal .lsm-stream-btn:hover{border-color:#e85d04;color:#fff;}
-    #liveSportsModal .lsm-stream-btn.lsm-stream-active{background:#e85d04;border-color:#e85d04;color:#fff;}
+    #liveSportsModal .lsm-stream-btn.lsm-stream-active{background:#176b3b;border-color:#238d50;color:#fff;}
+    #liveSportsModal .lsm-next{padding:14px 16px 16px;background:#07110c;border-top:1px solid rgba(255,255,255,.08);}
+    #liveSportsModal .lsm-next-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px;}
+    #liveSportsModal .lsm-next-title{font-size:12px;font-weight:800;color:#e9f5ed;letter-spacing:.02em;}
+    #liveSportsModal .lsm-next-note{font-size:10px;color:#82968a;}
+    #liveSportsModal .lsm-next-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:8px;}
+    #liveSportsModal .lsm-next-card{display:flex;align-items:center;gap:9px;min-width:0;padding:9px 10px;border:1px solid rgba(255,255,255,.09);border-radius:9px;background:#0b1911;color:#e9f5ed;text-align:left;transition:border-color .15s,background .15s,box-shadow .15s;}
+    #liveSportsModal button.lsm-next-card{cursor:pointer;}
+    #liveSportsModal button.lsm-next-card:hover{border-color:rgba(29,219,106,.45);background:#102419;}
+    #liveSportsModal .lsm-next-card.is-selected{border-color:#1ddb6a;background:rgba(29,219,106,.11);box-shadow:inset 0 0 0 1px rgba(29,219,106,.22),0 0 12px rgba(29,219,106,.09);}
+    #liveSportsModal .lsm-next-card.is-upcoming{opacity:.78;}
+    #liveSportsModal .lsm-next-teams{display:flex;align-items:center;gap:5px;flex:1;min-width:0;font-size:11px;font-weight:700;}
+    #liveSportsModal .lsm-next-team{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    #liveSportsModal .lsm-next-score{font-size:12px;font-weight:850;color:#fff;white-space:nowrap;font-variant-numeric:tabular-nums;}
+    #liveSportsModal .lsm-next-status{font-size:9px;font-weight:800;color:#ff777f;white-space:nowrap;}
+    #liveSportsModal .lsm-next-status.upcoming{color:#9db5a5;}
+    #liveSportsModal .lsm-next-logo{width:22px;height:22px;object-fit:contain;flex:0 0 auto;}
+    @media(max-width:600px){
+      #liveSportsModal{padding:0;align-items:flex-start;}
+      #liveSportsModal .lsm-shell{width:100%;max-height:100dvh;min-height:100dvh;border-radius:0;border:0;}
+      #liveSportsModal .lsm-head{padding:12px 13px;}
+      #liveSportsModal .lsm-video-wrap{max-height:none;}
+      #liveSportsModal .lsm-matchbar{gap:10px;padding:16px 11px 13px;}
+      #liveSportsModal .lsm-side{gap:7px;}
+      #liveSportsModal .lsm-team-name{font-size:11px;}
+      #liveSportsModal .lsm-scoreline{gap:6px;font-size:27px;}
+      #liveSportsModal .lsm-score-dash{font-size:15px;}
+      #liveSportsModal .lsm-matchmeta{padding-bottom:13px;}
+      #liveSportsModal .lsm-next{padding:13px 11px 18px;}
+      #liveSportsModal .lsm-next-list{grid-template-columns:1fr;}
+    }
     `;
     const style = document.createElement('style');
     style.id = 'liveSportsModalStyle';
@@ -572,7 +682,7 @@ function ensureLiveSportsModal() {
         '<div class="lsm-shell" role="dialog" aria-modal="true" aria-label="Live match player">' +
             '<div class="lsm-head">' +
                 '<div class="lsm-title">' +
-                    '<span class="lsm-live-dot"></span>' +
+                    '<span class="lsm-live-dot" id="lsmLiveDot"></span>' +
                     '<span id="lsmTitle">Live Match</span>' +
                     '<span class="lsm-league" id="lsmLeague"></span>' +
                 '<span class="lsm-minute" id="lsmMinute" style="display:none"></span>' +
@@ -584,7 +694,14 @@ function ensureLiveSportsModal() {
                 '<div class="lsm-loading-msg" id="lsmLoadingMsg"><span class="lsm-loading-msg-text" id="lsmLoadingText">Connecting to live stream...</span><button type="button" class="lsm-start-btn" id="lsmStartButton">▶ Play live stream</button></div>' +
                 '<div class="lsm-error" id="lsmError"></div>' +
             '</div>' +
+            '<div class="lsm-matchbar" id="lsmMatchbar" style="display:none">' +
+                '<div class="lsm-side"><img class="lsm-team-logo" id="lsmHomeLogo" alt=""><span class="lsm-team-fallback" id="lsmHomeFallback" style="display:none">⚽</span><span class="lsm-team-name" id="lsmHomeName"></span></div>' +
+                '<div class="lsm-scoreline"><span id="lsmHomeScore">–</span><span class="lsm-score-dash">:</span><span id="lsmAwayScore">–</span></div>' +
+                '<div class="lsm-side"><img class="lsm-team-logo" id="lsmAwayLogo" alt=""><span class="lsm-team-fallback" id="lsmAwayFallback" style="display:none">⚽</span><span class="lsm-team-name" id="lsmAwayName"></span></div>' +
+            '</div>' +
+            '<div class="lsm-matchmeta" id="lsmMatchmeta" style="display:none"><span id="lsmMatchRound"></span><span class="lsm-matchstate" id="lsmMatchState"></span></div>' +
             '<div class="lsm-streams" id="lsmStreams"></div>' +
+            '<section class="lsm-next" id="lsmNextMatches"><div class="lsm-next-head"><span class="lsm-next-title">MORE MATCHES TODAY</span><span class="lsm-next-note">Live scores &amp; fixtures</span></div><div class="lsm-next-list" id="lsmNextList"><div class="lsm-next-note">Loading today&#39;s matches…</div></div></section>' +
         '</div>';
     document.body.appendChild(modal);
 
@@ -597,12 +714,88 @@ function ensureLiveSportsModal() {
 }
 ensureLiveSportsModal();
 
+// Render only values returned by SportsNow's match detail API.
+function renderSportsMatchInfo(rawMatch) {
+    const match = rawMatch && rawMatch._sportsNow ? rawMatch : normalizeSportsNowMatch(rawMatch || {});
+    const home = match.homeTeam || sportsNowTeam(match.team1);
+    const away = match.awayTeam || sportsNowTeam(match.team2);
+    const bar = document.getElementById('lsmMatchbar');
+    const meta = document.getElementById('lsmMatchmeta');
+    if (!bar || !meta) return;
+    const setText = (id, value, fallback) => { const el = document.getElementById(id); if (el) el.textContent = value == null || value === '' ? (fallback || '') : String(value); };
+    const setTeam = (side, team) => {
+        setText('lsm' + side + 'Name', team.name, side === 'Home' ? 'Home' : 'Away');
+        setText('lsm' + side + 'Score', team.score, '0');
+        const img = document.getElementById('lsm' + side + 'Logo');
+        const fallback = document.getElementById('lsm' + side + 'Fallback');
+        const logo = srailSafeUrl(team.logo || '');
+        if (img && fallback) {
+            img.onerror = () => { img.style.display = 'none'; fallback.style.display = 'grid'; };
+            if (logo) { img.src = logo; img.alt = team.name || ''; img.style.display = 'block'; fallback.style.display = 'none'; }
+            else { img.removeAttribute('src'); img.style.display = 'none'; fallback.style.display = 'grid'; }
+        }
+    };
+    setTeam('Home', home);
+    setTeam('Away', away);
+    const state = document.getElementById('lsmMatchState');
+    const status = match.status || sportsNowStatus(match);
+    const isLive = status === 'live' || status === 'halftime';
+    const isFinished = status === 'finished' || sportsIsFinished(match);
+    const stateLabel = isLive ? (match.minute && match.minute !== 'LIVE' ? 'LIVE · ' + match.minute : 'LIVE') : isFinished ? (match.minute || 'FULL TIME') : status === 'upcoming' ? 'UPCOMING' : 'MATCH';
+    if (state) { state.textContent = stateLabel; state.classList.toggle('is-live', isLive); }
+    const liveDot = document.getElementById('lsmLiveDot');
+    if (liveDot) liveDot.classList.toggle('is-static', !isLive);
+    setText('lsmMatchRound', [match.league, match.matchRound].filter(Boolean).join(' · '));
+    bar.style.display = 'flex';
+    meta.style.display = 'flex';
+}
+
+function renderSportsNextMatches(currentMatchId) {
+    const list = document.getElementById('lsmNextList');
+    const section = document.getElementById('lsmNextMatches');
+    if (!list || !section) return;
+    const today = new Date().toDateString();
+    const rows = (sportsMatchCache || []).filter(m => {
+        if (String(m.id) === String(currentMatchId || '')) return false;
+        const live = (m.status === 'live' || m.status === 'halftime') && !sportsIsFinished(m);
+        const upcomingToday = m.status === 'upcoming' && m.startTime && new Date(m.startTime).toDateString() === today;
+        return live || upcomingToday;
+    }).sort((a,b) => {
+        const al = a.status === 'live' || a.status === 'halftime';
+        const bl = b.status === 'live' || b.status === 'halftime';
+        if (al !== bl) return al ? -1 : 1;
+        return sportsNowTimestamp(a.startTime) - sportsNowTimestamp(b.startTime);
+    }).slice(0, 6);
+    if (!rows.length) {
+        section.style.display = 'block';
+        list.innerHTML = '<div class="lsm-next-note">No other live or upcoming matches available right now.</div>';
+        return;
+    }
+    section.style.display = 'block';
+    const esc = value => srailEscape(String(value == null ? '' : value));
+    list.innerHTML = rows.map(m => {
+        const home = m.homeTeam || {}, away = m.awayTeam || {};
+        const live = (m.status === 'live' || m.status === 'halftime') && !sportsIsFinished(m);
+        const selected = String(m.id) === String(currentMatchId || '');
+        const hLogo = srailSafeUrl(home.logo || '');
+        const aLogo = srailSafeUrl(away.logo || '');
+        const logo = (url, name) => url ? '<img class="lsm-next-logo" src="' + esc(url) + '" alt="" onerror="this.style.display=\'none\'">' : '';
+        const status = live ? (m.minute || 'LIVE') : formatKickoff(m.startTime);
+        const score = live || sportsIsFinished(m) ? (esc(home.score || 0) + '–' + esc(away.score || 0)) : 'VS';
+        const canWatch = live && !!m.streamUrl;
+        const cls = 'lsm-next-card' + (selected ? ' is-selected' : '') + (!live ? ' is-upcoming' : '');
+        const displayStatus = live && !canWatch ? 'NO FEED' : status;
+        const content = logo(hLogo,home.name) + '<span class="lsm-next-teams"><span class="lsm-next-team">' + esc(home.name || 'Home') + '</span><span>·</span><span class="lsm-next-team">' + esc(away.name || 'Away') + '</span></span>' + logo(aLogo,away.name) + '<span class="lsm-next-score">' + score + '</span><span class="lsm-next-status' + (live ? '' : ' upcoming') + '">' + esc(displayStatus) + '</span>';
+        return canWatch ? '<button type="button" class="' + cls + '" data-match-id="' + esc(m.id) + '" onclick="watchFootballById(this.dataset.matchId)">' + content + '</button>' : '<div class="' + cls + '">' + content + '</div>';
+    }).join('');
+}
+
 function closeLiveSports() {
     const modal  = document.getElementById('liveSportsModal');
     const video  = document.getElementById('lsmVideo');
     if (sportsHls) { try { sportsHls.destroy(); } catch(e) {} sportsHls = null; }
     if (typeof clearSportsStallWatch === 'function') clearSportsStallWatch();
-    sportsCurrent = { matchId: '', title: '', league: '', streamUrl: '', proxyUrl: '', refetching: false };
+    sportsCurrent = { matchId: '', title: '', league: '', streamUrl: '', proxyUrl: '', refetching: false, minute: '', matchData: null };
     if (video) {
         try { video.pause(); } catch(e) {}
         video.removeAttribute('src');
@@ -617,16 +810,20 @@ function closeLiveSports() {
 
 // Track current playback context so we can self-heal (re-fetch a fresh signed URL,
 // nudge past stalls, etc.) without the user having to do anything.
-let sportsCurrent = { matchId: '', title: '', league: '', streamUrl: '', proxyUrl: '', refetching: false, minute: '' };
+let sportsCurrent = { matchId: '', title: '', league: '', streamUrl: '', proxyUrl: '', refetching: false, minute: '', matchData: null };
 let sportsStallTimer = null;
 
 // Live match minute updater — fires every 30s while player is open
 async function _refreshLsmMinute() {
     if (!sportsCurrent.matchId) return;
     try {
-        const cur = normalizeSportsNowMatch(await fetchSportsNowMatch(sportsCurrent.matchId));
+        const curRaw = await fetchSportsNowMatch(sportsCurrent.matchId);
+        const cur = normalizeSportsNowMatch((await applyFootballLiveGamesScores([curRaw]))[0]);
         const min = cur.minute ? String(cur.minute) : '';
         sportsCurrent.minute = min;
+        sportsCurrent.matchData = cur;
+        renderSportsMatchInfo(cur);
+        renderSportsNextMatches(sportsCurrent.matchId);
         const el = document.getElementById('lsmMinute');
         if (!el) return;
         if (min && min !== 'LIVE') { el.textContent = min + '′'; el.style.display = 'inline-flex'; }
@@ -673,7 +870,7 @@ async function refreshSportsStream(reason) {
         const fresh = match.playPath || '';
         if (fresh && sportsNowPlaybackUrl(fresh) !== sportsCurrent.streamUrl) {
             // Re-init with a newly fetched signed SportsNow URL.
-            watchFootball(sportsNowPlaybackUrl(fresh), sportsCurrent.title, sportsCurrent.league, sportsCurrent.matchId, '', match._streamList);
+            watchFootball(sportsNowPlaybackUrl(fresh), sportsCurrent.title, sportsCurrent.league, sportsCurrent.matchId, '', match._streamList, match);
             return true;
         }
     } catch(e) {}
@@ -703,6 +900,9 @@ async function watchFootballById(matchId, title, league) {
     const titleEl  = document.getElementById('lsmTitle');
     const leagueEl = document.getElementById('lsmLeague');
     if (titleEl)   titleEl.textContent  = title  || 'Live Match';
+    document.querySelectorAll('.scard.is-selected').forEach(card => card.classList.remove('is-selected'));
+    const selectedCard = document.querySelector('.scard-watch-btn[data-mid="' + CSS.escape(String(matchId)) + '"]')?.closest('.scard');
+    if (selectedCard) selectedCard.classList.add('is-selected');
     if (leagueEl)  leagueEl.textContent = league ? '· ' + league : '';
     var _minEl0 = document.getElementById('lsmMinute'); if (_minEl0) _minEl0.style.display = 'none';
     if (errorEl)   { errorEl.textContent = ''; errorEl.classList.remove('lsm-show'); }
@@ -712,12 +912,16 @@ async function watchFootballById(matchId, title, league) {
     const video = document.getElementById('lsmVideo');
     if (video) { video.removeAttribute('src'); try { video.load(); } catch(e) {} }
     try {
-        const match = normalizeSportsNowMatch(await fetchSportsNowMatch(matchId));
+        const matchRaw = await fetchSportsNowMatch(matchId);
+        const match = normalizeSportsNowMatch((await applyFootballLiveGamesScores([matchRaw]))[0]);
         const url = sportsNowPlaybackUrl(match.playPath || '');
         if (!url) throw new Error('This match is live in the score feed, but SportsNow has not published a live video feed for it yet. Try again shortly.');
         const displayTitle = title || ((match.homeTeam.name || 'Home') + ' vs ' + (match.awayTeam.name || 'Away'));
         const displayLeague = league || match.league || '';
         sportsCurrent.minute = match.minute || '';
+        sportsCurrent.matchData = match;
+        renderSportsMatchInfo(match);
+        renderSportsNextMatches(matchId);
         var _fetchedMinute = sportsCurrent.minute;
         var _minEl1 = document.getElementById('lsmMinute');
         if (_minEl1) {
@@ -729,7 +933,7 @@ async function watchFootballById(matchId, title, league) {
                 _minEl1.style.display = 'inline-flex';
             }
         }
-        watchFootball(url, displayTitle, displayLeague, matchId, '', match._streamList);
+        watchFootball(url, displayTitle, displayLeague, matchId, '', match._streamList, match);
     } catch(e) {
         if (errorEl) { errorEl.textContent = e.message || 'Stream unavailable.'; errorEl.classList.add('lsm-show'); }
     }
@@ -748,7 +952,8 @@ async function watchSportsClipsById(matchId, title, league, kind) {
     document.body.style.overflow = 'hidden';
     document.body.classList.add('modal-open');
     try {
-        const match = normalizeSportsNowMatch(await fetchSportsNowMatch(matchId));
+        const matchRaw = await fetchSportsNowMatch(matchId);
+        const match = normalizeSportsNowMatch((await applyFootballLiveGamesScores([matchRaw]))[0]);
         const requestedKind = kind === 'replay' || kind === 'highlight' ? kind : 'auto';
         let resolvedKind = requestedKind;
         let items = requestedKind === 'replay' ? match.replayItems : requestedKind === 'highlight' ? match.highlightItems : [];
@@ -773,7 +978,8 @@ async function watchSportsClipsById(matchId, title, league, kind) {
             resolution: item.duration ? item.duration + 's' : '',
             _matchId: ''
         }));
-        watchFootball(streams[0].url, displayTitle, league || match.league || '', '', '', streams);
+        renderSportsMatchInfo(match);
+        watchFootball(streams[0].url, displayTitle, league || match.league || '', '', '', streams, match);
     } catch (e) {
         if (lm) lm.style.display = 'none';
         if (errorEl) { errorEl.textContent = e.message || 'Video unavailable.'; errorEl.classList.add('lsm-show'); }
@@ -787,10 +993,10 @@ function _switchLsmStream(idx) {
     if (!url) return;
     const titleEl  = document.getElementById('lsmTitle');
     const leagueEl = document.getElementById('lsmLeague');
-    watchFootball(url, titleEl ? titleEl.textContent : '', leagueEl ? leagueEl.textContent.replace(/^·\s*/,'') : '', _lsmAllStreams[0] && _lsmAllStreams[0]._matchId || '', '', _lsmAllStreams);
+    watchFootball(url, titleEl ? titleEl.textContent : '', leagueEl ? leagueEl.textContent.replace(/^·\s*/,'') : '', _lsmAllStreams[0] && _lsmAllStreams[0]._matchId || '', '', _lsmAllStreams, sportsCurrent.matchData);
 }
 
-function watchFootball(streamUrl, title, league, matchId, proxyUrl, streams) {
+function watchFootball(streamUrl, title, league, matchId, proxyUrl, streams, matchData) {
     const modal    = document.getElementById('liveSportsModal');
     const video    = document.getElementById('lsmVideo');
     const titleEl  = document.getElementById('lsmTitle');
@@ -801,7 +1007,17 @@ function watchFootball(streamUrl, title, league, matchId, proxyUrl, streams) {
     if (leagueEl) leagueEl.textContent = league ? '· ' + league : '';
     if (errorEl)  { errorEl.textContent = ''; errorEl.classList.remove('lsm-show'); }
 
-    sportsCurrent = { matchId: matchId || '', title: title || '', league: league || '', streamUrl: streamUrl, proxyUrl: proxyUrl || '', refetching: false, minute: sportsCurrent.minute || '' };
+    sportsCurrent = { matchId: matchId || '', title: title || '', league: league || '', streamUrl: streamUrl, proxyUrl: proxyUrl || '', refetching: false, minute: (matchData && matchData.minute) || sportsCurrent.minute || '', matchData: matchData || sportsCurrent.matchData || null };
+    if (sportsCurrent.matchData) {
+        renderSportsMatchInfo(sportsCurrent.matchData);
+        renderSportsNextMatches(sportsCurrent.matchId);
+    }
+    else {
+        const bar = document.getElementById('lsmMatchbar');
+        const meta = document.getElementById('lsmMatchmeta');
+        if (bar) bar.style.display = 'none';
+        if (meta) meta.style.display = 'none';
+    }
     _startSportsMinuteInterval();
 
     // Update quality switcher

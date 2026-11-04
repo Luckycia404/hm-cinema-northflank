@@ -15,11 +15,12 @@
     <meta property="og:description" id="ogDesc" content="Watch free on HM Cinema.">
     <meta property="og:image" id="ogImage" content="https://hm-cinema.me/og-image.jpg">
     <meta property="og:type" content="video.movie">
+    <meta property="og:url" id="ogUrl" content="">
     <meta property="og:site_name" content="HM CINEMA">
     <link rel="canonical" href="">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/style.css?v=10">
+    <link rel="stylesheet" href="/style.css?v=15">
     <style>
 /* ── Base ─────────────────────────────────────────────── */
 .movie-page { padding-top: 64px; min-height: 100vh; background: #0A0A0F; }
@@ -723,7 +724,7 @@ function esc(v){
 }
 
 /* ── Movie ID ─────────────────────────────────────────── */
-const movieId = location.pathname.replace(/^\/(movie|tv)\//, '').split('/')[0]
+const movieId = location.pathname.replace(/^\/(movie|tv|music)\//, '').split('/')[0]
                 || new URLSearchParams(location.search).get('id');
 
 /* ── Watchlist ────────────────────────────────────────── */
@@ -797,7 +798,9 @@ async function loadMovie(){
 }
 
 function renderMovie(s, resource, stars){
-    const isTV   = Number(s.subjectType??s.type)===2;
+    const subjectType = Number(s.subjectType??s.type);
+    const isTV   = subjectType===2;
+    const isMusic = subjectType===6;
     const poster = getPoster(s);
     const title  = s.title||s.name||'Unknown';
     const year   = s.releaseYear
@@ -825,10 +828,19 @@ function renderMovie(s, resource, stars){
     const trailer  = s.trailer||null;
 
     /* SEO */
-    document.title = title+' - HM CINEMA';
+    document.title = isMusic
+        ? 'Listen to '+title+(year?' ('+year+')':'')+' - HM CINEMA'
+        : 'Watch '+title+(year?' ('+year+')':'')+' Online Free in HD - HM CINEMA';
     var _pt=document.getElementById('pageTitle'); if(_pt) _pt.textContent=document.title;
+    var _kind=isMusic?'music':(isTV?'tv':'movie');
+    var _slug=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80);
+    var _canonicalPath='/'+_kind+'/'+movieId+(_slug?'/'+_slug:'');
+    if(location.pathname!==_canonicalPath) history.replaceState(null,'',_canonicalPath+location.search+location.hash);
+    var _canonical=document.querySelector('link[rel="canonical"]'); if(_canonical) _canonical.href=location.origin+_canonicalPath;
+    var _ogUrl=document.getElementById('ogUrl'); if(_ogUrl) _ogUrl.content=location.origin+_canonicalPath;
+    var _ogType=document.querySelector('meta[property="og:type"]'); if(_ogType) _ogType.content=isMusic?'website':(isTV?'video.tv_show':'video.movie');
     var _pd=document.getElementById('pageDesc'); if(_pd) _pd.setAttribute('content',desc.slice(0,160)||'Watch '+title+' free on HM Cinema.');
-    var _ot=document.getElementById('ogTitle'); if(_ot) _ot.setAttribute('content',title+' - HM CINEMA');
+    var _ot=document.getElementById('ogTitle'); if(_ot) _ot.setAttribute('content',document.title);
     var _od=document.getElementById('ogDesc'); if(_od) _od.setAttribute('content',desc.slice(0,200)||'Watch '+title+' on HM Cinema.');
     var _oi=document.getElementById('ogImage'); if(poster&&_oi) _oi.setAttribute('content',poster);
 
@@ -858,7 +870,7 @@ function renderMovie(s, resource, stars){
 
             <!-- Info + Overview -->
             <div class="movie-info-panel">
-                <span class="movie-type-badge">${isTV?'TV Series':'Movie'}</span>
+                <span class="movie-type-badge">${isMusic?'Music':(isTV?'TV Series':'Movie')}</span>
                 <h1 class="movie-title-main">${esc(title)}</h1>
                 <div class="movie-meta-row">
                     ${year    ?`<span class="movie-meta-chip"><i class="fas fa-calendar-alt"></i>${esc(year)}</span>`:''}
@@ -873,7 +885,7 @@ function renderMovie(s, resource, stars){
                 `:''}
                 <div class="movie-hero-actions">
                     <a class="btn-watch-now" href="${esc(watchHref)}">
-                        <i class="fas fa-play"></i> ${isTV?'Watch S1 E1':'Watch Now'}
+                        <i class="fas fa-play"></i> ${isTV?'Watch S1 E1':(isMusic?'Play Now':'Watch Now')}
                     </a>
                     ${isTV
                         ? `<button class="btn-wl" id="wlBtn" onclick="handleWL('${movieId}','${esc(title)}','${esc(poster)}',this)">${getWatchlist().some(m=>m.id===movieId)?'<i class="fas fa-bookmark"></i> Saved':'<i class="fas fa-bookmark"></i> Watchlist'}</button>`
@@ -1060,7 +1072,7 @@ async function loadRecs(){
             const name =m.title||m.name||'';
             const thumb=getRecPoster(m);
             const yr   =m.releaseDate?String(m.releaseDate).slice(0,4):(m.releaseYear?String(m.releaseYear):(m.year||''));
-            const recType=m.subjectType===2?'tv':'movie';
+            const recType=m.subjectType===2?'tv':(m.subjectType===6?'music':'movie');
             if(!id) return;
             html+=`<div class="rec-card" onclick="location.href='/${recType}/${esc(id)}'">
                 <div class="rec-img-wrap">

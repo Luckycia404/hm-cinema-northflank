@@ -1,6 +1,7 @@
 // =============================================================================
 // SEO module — adds search-engine-friendly server-rendered pages for individual
-// movies and TV shows so they can rank for queries like "avatar 2009", plus a
+// movies, TV shows and music entries so each content type has an accurate
+// canonical route and structured data, plus a
 // dynamic sitemap built from the live catalogue.
 //
 // Design notes:
@@ -41,8 +42,15 @@ const CACHE_MAX = 5000;
 function cacheGet(key, ttlMs) {
     const e = _cache.get(key);
     if (!e) return { hit: false };
-    if (Date.now() - e.t > ttlMs) { _cache.delete(key); return { hit: false }; }
-    // Touch (move-to-end) so LRU eviction prefers genuinely cold keys.
+    if (Date.now() - e.t > ttlMs) return { hit: false };
+    // Keep expired positive entries available for stale-if-upstream-error fallback.
+    // They are replaced on success or evicted normally when the cache is full.
+    _cache.delete(key); _cache.set(key, e);
+    return { hit: true, value: e.v };
+}
+function cacheGetStale(key, maxAgeMs) {
+    const e = _cache.get(key);
+    if (!e || e.v == null || Date.now() - e.t > maxAgeMs) return { hit: false };
     _cache.delete(key); _cache.set(key, e);
     return { hit: true, value: e.v };
 }
@@ -59,8 +67,9 @@ function cacheSet(key, v) {
     return v;
 }
 
-const MOVIE_TTL_MS = 60 * 60 * 1000;       // 1 hour
-const NEG_TTL_MS = 5 * 60 * 1000;          // 5 min for negative cache (bad IDs)
+const MOVIE_TTL_MS = 60 * 60 * 1000;       // 1 hour fresh cache
+const STALE_MOVIE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // Serve known-good SEO data during brief upstream outages
+const NEG_TTL_MS = 5 * 60 * 1000;          // 5 min for confirmed missing IDs
 const SITEMAP_TTL_MS = 60 * 60 * 1000;     // 1 hour (fetching more pages now)
 
 // ---------- index.html template loader --------------------------------------
@@ -120,11 +129,18 @@ function slugify(s) {
         .slice(0, 80);
 }
 
-// Build the canonical /movie/:id/:slug or /tv/:id/:slug path.
+// Build a canonical route that matches the upstream content type.
+function routeType(subjectType) {
+    if (Number(subjectType) === 2) return 'tv';
+    if (Number(subjectType) === 6) return 'music';
+    if (Number(subjectType) === 1) return 'movie';
+    return null;
+}
 function urlFor(typeOrSubject, idMaybe, titleMaybe) {
     let type, id, title;
     if (typeof typeOrSubject === 'object' && typeOrSubject) {
-        type = typeOrSubject.subjectType === 2 ? 'tv' : 'movie';
+        type = routeType(typeOrSubject.subjectType);
+        if (!type) return null;
         id = typeOrSubject.subjectId;
         title = typeOrSubject.title;
     } else {
@@ -155,6 +171,7 @@ async function fetchMovieCached(id) {
     // hammering upstream while still letting genuinely new IDs retry sooner.
     const negHit = cacheGet(key, NEG_TTL_MS);
     if (negHit.hit && negHit.value === null) return null;
+    const staleHit = cacheGetStale(key, STALE_MOVIE_TTL_MS);
     const pending = _inflight.get(key);
     if (pending) return pending;
     const request = (async () => {
@@ -162,8 +179,16 @@ async function fetchMovieCached(id) {
             const data = await _fetchers.getMovieInfo(id);
             return cacheSet(key, data || null);
         } catch (e) {
-            cacheSet(key, null);
-            return null;
+            // Do not turn transient upstream failures into cached 404s. If this
+            // title was fetched successfully within the last 7 days, serve that
+            // known-good metadata instead of returning a crawler-facing 5xx.
+            const status = Number(e.response && e.response.status) || 0;
+            if (status === 404) cacheSet(key, null); // Briefly cache confirmed missing IDs.
+            if (status !== 404 && staleHit.hit) {
+                console.warn(`[SEO] Serving stale cached metadata for ${id} after upstream failure${status ? ` (HTTP ${status})` : ''}`);
+                return staleHit.value;
+            }
+            throw e;
         } finally {
             _inflight.delete(key);
         }
@@ -186,31 +211,33 @@ async function fetchCatalogCached() {
 }
 
 // ---------- title / description builders ------------------------------------
-function buildPageTitle(subject, isTv) {
+function buildPageTitle(subject, isTv, isMusic = false) {
     const title = subject.title || 'Untitled';
     const yr = (subject.releaseDate && subject.releaseDate.match(/\b(19|20)\d{2}\b/) || [])[0];
     const yrPart = yr ? ` (${yr})` : '';
-    const kind = isTv ? 'Series' : 'Movie';
+    if (isMusic) return `Listen to ${title}${yrPart} - HM CINEMA`;
     return `Watch ${title}${yrPart} Online Free in HD - HM CINEMA`;
 }
 
-function buildPageDescription(subject) {
+function buildPageDescription(subject, isMusic = false) {
     const title = subject.title || 'this title';
     let desc = (subject.description || '').replace(/\s+/g, ' ').trim();
-    if (desc.length > 155) desc = desc.slice(0, 152).trimEnd() + '...';
     if (!desc) {
         const genre = subject.genre ? subject.genre.split(',').slice(0, 2).join(', ') : '';
-        desc = `Stream ${title}${genre ? ' (' + genre + ')' : ''} in HD for free on HM CINEMA. No sign-up required.`;
+        desc = isMusic
+            ? `Explore ${title}${genre ? ' — ' + genre : ''} music on HM CINEMA.`
+            : `Stream ${title}${genre ? ' (' + genre + ')' : ''} in HD on HM CINEMA.`;
     }
+    if (desc.length > 155) desc = desc.slice(0, 152).trimEnd() + '...';
     return desc;
 }
 
 // ---------- JSON-LD schema --------------------------------------------------
 // Google reads schema.org Movie / TVSeries to render rich results: poster,
 // star rating, year, runtime in the SERP. Spec: https://schema.org/Movie
-function buildJsonLd(subject, canonicalUrl, isTv) {
+function buildJsonLd(subject, canonicalUrl, isTv, isMusic = false) {
     const title = subject.title || 'Untitled';
-    const desc = buildPageDescription(subject);
+    const desc = buildPageDescription(subject, isMusic);
     const poster = subject.cover && subject.cover.url ? subject.cover.url : (subject.thumbnail || '');
     const releaseDate = subject.releaseDate || undefined;
     const genre = subject.genre ? subject.genre.split(',').map(s => s.trim()).filter(Boolean) : undefined;
@@ -218,7 +245,7 @@ function buildJsonLd(subject, canonicalUrl, isTv) {
 
     const ld = {
         '@context': 'https://schema.org',
-        '@type': isTv ? 'TVSeries' : 'Movie',
+        '@type': isMusic ? 'MusicPlaylist' : (isTv ? 'TVSeries' : 'Movie'),
         name: title,
         description: desc,
         url: canonicalUrl,
@@ -229,7 +256,7 @@ function buildJsonLd(subject, canonicalUrl, isTv) {
     if (country) ld.countryOfOrigin = { '@type': 'Country', name: country };
 
     // Duration → ISO 8601 (PT2H35M). Upstream gives seconds.
-    if (!isTv && subject.duration && subject.duration > 0) {
+    if (!isTv && !isMusic && subject.duration && subject.duration > 0) {
         const total = subject.duration;
         const h = Math.floor(total / 3600);
         const m = Math.floor((total % 3600) / 60);
@@ -286,15 +313,15 @@ function pickSocialImage(subject) {
     return candidates[0] || { url: '', width: 0, height: 0 };
 }
 
-function buildServerHero(subject, isTv, canonicalUrl) {
+function buildServerHero(subject, isTv, canonicalUrl, isMusic = false) {
     const title = subject.title || 'Untitled';
-    const desc = buildPageDescription(subject);
+    const desc = buildPageDescription(subject, isMusic);
     const poster = (subject.cover && subject.cover.url) || subject.thumbnail || '';
     const year = String(subject.releaseYear || subject.releaseDate || subject.year || '').match(/\b(19|20)\d{2}\b/)?.[0] || '';
     const rating = subject.imdbRatingValue || subject.score || subject.rating || '';
     const country = subject.countryName || subject.country || '';
     const genres = String(subject.genre || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 5);
-    const typeLabel = isTv ? 'TV Series' : 'Movie';
+    const typeLabel = isMusic ? 'Music' : (isTv ? 'TV Series' : 'Movie');
     const subjectId = subject.subjectId || subject.id || '';
     const watchHref = `/watch/${encodeURIComponent(subjectId)}?title=${encodeURIComponent(title)}`;
     const posterHtml = poster
@@ -312,7 +339,7 @@ function buildServerHero(subject, isTv, canonicalUrl) {
     return `
     <nav aria-label="Breadcrumb" class="seo-breadcrumbs" style="padding:12px 16px 0;color:#999;font-size:12px">
         <a href="/" style="color:#aaa">Home</a> <span aria-hidden="true">›</span>
-        <a href="/#${isTv ? 'tv' : 'movies'}" style="color:#aaa">${isTv ? 'TV Series' : 'Movies'}</a>
+        <a href="${isMusic ? '/' : (isTv ? '/#tv' : '/#movies')}" style="color:#aaa">${isMusic ? 'Music' : (isTv ? 'TV Series' : 'Movies')}</a>
         <span aria-hidden="true">›</span> <span>${escText(title)}</span>
     </nav>
     <div class="movie-hero seo-server-hero">
@@ -325,7 +352,7 @@ function buildServerHero(subject, isTv, canonicalUrl) {
                 ${genreHtml}
                 <p class="movie-hero-overview">${escText(desc)}</p>
                 <div class="movie-hero-actions">
-                    <a class="btn-watch-now" href="${escAttr(watchHref)}">Watch Now</a>
+                    <a class="btn-watch-now" href="${escAttr(watchHref)}">${isMusic ? 'Play Now' : 'Watch Now'}</a>
                     <a class="btn-wl" href="${escAttr(canonicalUrl)}">Details</a>
                 </div>
             </div>
@@ -333,14 +360,14 @@ function buildServerHero(subject, isTv, canonicalUrl) {
     </div>`;
 }
 
-function buildBreadcrumbJsonLd(subject, canonicalUrl, isTv) {
+function buildBreadcrumbJsonLd(subject, canonicalUrl, isTv, isMusic = false) {
     const root = new URL(canonicalUrl).origin;
     return {
         '@context': 'https://schema.org',
         '@type': 'BreadcrumbList',
         itemListElement: [
             { '@type': 'ListItem', position: 1, name: 'Home', item: root + '/' },
-            { '@type': 'ListItem', position: 2, name: isTv ? 'TV Series' : 'Movies', item: root + `/#${isTv ? 'tv' : 'movies'}` },
+            { '@type': 'ListItem', position: 2, name: isMusic ? 'Music' : (isTv ? 'TV Series' : 'Movies'), item: isMusic ? root + '/' : root + `/#${isTv ? 'tv' : 'movies'}` },
             { '@type': 'ListItem', position: 3, name: subject.title || 'Title', item: canonicalUrl },
         ],
     };
@@ -349,17 +376,17 @@ function buildBreadcrumbJsonLd(subject, canonicalUrl, isTv) {
 // ---------- main render: stamp the SPA template with movie SEO --------------
 // Returns the modified HTML string. Falls back to the plain template if the
 // upstream lookup failed — better to serve the SPA than a 500.
-function renderSeoHtml({ template, subject, stars, isTv, canonicalUrl }) {
+function renderSeoHtml({ template, subject, stars, isTv, isMusic = false, canonicalUrl }) {
     if (!subject) return template;
 
     if (Array.isArray(stars)) subject._stars = stars;
 
-    const title = buildPageTitle(subject, isTv);
-    const desc = buildPageDescription(subject);
+    const title = buildPageTitle(subject, isTv, isMusic);
+    const desc = buildPageDescription(subject, isMusic);
     const poster = (subject.cover && subject.cover.url) || subject.thumbnail || '';
     const social = pickSocialImage(subject);
-    const ldJson = jsonLdSafe(buildJsonLd(subject, canonicalUrl, isTv));
-    const breadcrumbJson = jsonLdSafe(buildBreadcrumbJsonLd(subject, canonicalUrl, isTv));
+    const ldJson = jsonLdSafe(buildJsonLd(subject, canonicalUrl, isTv, isMusic));
+    const breadcrumbJson = jsonLdSafe(buildBreadcrumbJsonLd(subject, canonicalUrl, isTv, isMusic));
 
     let html = template;
 
@@ -434,7 +461,7 @@ function renderSeoHtml({ template, subject, stars, isTv, canonicalUrl }) {
     }
     html = html.replace(
         /<meta\s+property=["']og:type["'][^>]*>/i,
-        `<meta property="og:type" content="video.${isTv ? 'tv_show' : 'movie'}">`
+        `<meta property="og:type" content="${isMusic ? 'website' : (isTv ? 'video.tv_show' : 'video.movie')}">`
     );
 
     // 4. Canonical
@@ -452,14 +479,14 @@ function renderSeoHtml({ template, subject, stars, isTv, canonicalUrl }) {
     // client-side app replaces this block after hydration for normal users,
     // while crawlers get a meaningful H1, image, description and breadcrumbs
     // in the initial HTML response.
-    html = html.replace('<!-- SEO_SERVER_HERO -->', buildServerHero(subject, isTv, canonicalUrl));
+    html = html.replace('<!-- SEO_SERVER_HERO -->', buildServerHero(subject, isTv, canonicalUrl, isMusic));
 
     return html;
 }
 
 // ---------- sitemap ----------------------------------------------------------
 // Pulls trending / popular / hot from the local API helpers and emits a
-// sitemap with /, /movie/:id/:slug and /tv/:id/:slug for each unique title.
+// sitemap with typed /movie, /tv and /music URLs for each unique title.
 async function buildSitemapXml(req) {
     const root = baseUrl(req);
     const lists = await fetchCatalogCached();
@@ -476,27 +503,57 @@ async function buildSitemapXml(req) {
     const urls = [];
     urls.push({ loc: `${root}/`, priority: '1.0', changefreq: 'daily' });
     urls.push({ loc: `${root}/sports`, priority: '0.8', changefreq: 'hourly' });
+    for (const landingPath of ['/watch-movies-online', '/latest-movies-online', '/moviebox-alternatives', '/free-tv-series-online']) {
+        urls.push({ loc: `${root}${landingPath}`, priority: '0.8', changefreq: 'weekly' });
+    }
 
     for (const item of seen.values()) {
+        const itemPath = urlFor(item);
+        if (!itemPath) continue; // Do not submit unknown content as a movie.
         urls.push({
-            loc: root + urlFor(item),
+            loc: root + itemPath,
             priority: '0.7',
             changefreq: 'weekly',
         });
+        if ([1, 2].includes(Number(item.subjectType))) {
+            const videoThumbnail = (item.stills && item.stills.url) || (item.trailer && item.trailer.cover && item.trailer.cover.url) || (item.cover && item.cover.url) || item.thumbnail || '';
+            const videoDescription = String(item.description || `Watch ${item.title || 'this title'} on HM CINEMA.`).replace(/\s+/g, ' ').trim().slice(0, 500);
+            urls.push({
+                loc: root + '/watch/' + encodeURIComponent(item.subjectId),
+                priority: '0.65',
+                changefreq: 'weekly',
+                ...(videoThumbnail ? { video: {
+                    title: item.title || 'Watch online', description: videoDescription,
+                    thumbnail: videoThumbnail,
+                    contentLoc: root + '/api/video/' + encodeURIComponent(item.subjectId),
+                    duration: Number(item.duration) > 0 ? Math.round(Number(item.duration)) : 0,
+                } } : {}),
+            });
+        }
     }
 
     const _today = new Date().toISOString().slice(0, 10);
-    const body = urls.map(u =>
-        '  <url>\n' +
-        `    <loc>${escAttr(u.loc)}</loc>\n` +
-        `    <lastmod>${u.lastmod || _today}</lastmod>\n` +
-        `    <priority>${u.priority}</priority>\n` +
-        `    <changefreq>${u.changefreq}</changefreq>\n` +
-        '  </url>'
-    ).join('\n');
+    const body = urls.map(u => {
+        const videoXml = u.video ? (
+            '    <video:video>\n' +
+            `      <video:thumbnail_loc>${escAttr(u.video.thumbnail)}</video:thumbnail_loc>\n` +
+            `      <video:title>${escAttr(u.video.title)}</video:title>\n` +
+            `      <video:description>${escAttr(u.video.description)}</video:description>\n` +
+            `      <video:content_loc>${escAttr(u.video.contentLoc)}</video:content_loc>\n` +
+            (u.video.duration ? `      <video:duration>${u.video.duration}</video:duration>\n` : '') +
+            '    </video:video>\n'
+        ) : '';
+        return '  <url>\n' +
+            `    <loc>${escAttr(u.loc)}</loc>\n` +
+            `    <lastmod>${u.lastmod || _today}</lastmod>\n` +
+            `    <priority>${u.priority}</priority>\n` +
+            `    <changefreq>${u.changefreq}</changefreq>\n` +
+            videoXml +
+            '  </url>';
+    }).join('\n');
 
     return '<?xml version="1.0" encoding="UTF-8"?>\n' +
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n' +
         body + '\n' +
         '</urlset>\n';
 }
@@ -509,6 +566,7 @@ module.exports = {
     clearMovieTemplate,
     baseUrl,
     urlFor,
+    routeType,
     slugify,
     fetchMovieCached,
     renderSeoHtml,
