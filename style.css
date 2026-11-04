@@ -5067,7 +5067,7 @@ img, video, iframe, canvas, svg {
 }
 
 /* HM CINEMA player upgrade — responsive controls, dialogs and previews */
-.player-volume-wrap{display:flex;align-items:center;gap:5px;min-width:94px}
+.player-volume-wrap{display:flex;align-items:center;gap:5px;min-width:0}
 .player-volume-wrap input{width:76px;max-width:8vw;accent-color:#e50914;cursor:pointer}
 .player-volume-wrap button{flex:0 0 40px}
 .player-network-status{display:inline-block;margin-left:9px;color:#9ca3af;font-size:10px;white-space:nowrap;vertical-align:middle}
@@ -5095,7 +5095,7 @@ img, video, iframe, canvas, svg {
 .player-dialog-note{font-size:12px!important}
 .watch-retry-btn{display:block;margin:14px auto 0;width:min(240px,100%)}
 @media(max-width:768px){
- .player-volume-wrap{min-width:0;flex:1 1 100%;order:3;justify-content:center}
+ .player-volume-wrap{min-width:0;flex:0 0 auto;order:0;justify-content:center}
  .player-volume-wrap input{width:min(160px,38vw);max-width:none}
  .player-network-status{display:none}
  .skip-intro-btn{right:12px;bottom:72px;padding:9px 12px;font-size:12px}
@@ -5104,7 +5104,7 @@ img, video, iframe, canvas, svg {
  .player-dialog{padding:20px}
 }
 @media(max-width:480px){
- .player-volume-wrap{order:3}
+ .player-volume-wrap{order:0}
  #subtitleStyleBtn,#sharePlayerBtn,#reportPlayerBtn{min-width:40px;padding:7px}
  .player-dialog h3{font-size:19px}
  .player-dialog-actions{flex-direction:column}
@@ -5113,7 +5113,6 @@ img, video, iframe, canvas, svg {
  .controls-right{flex-wrap:wrap;justify-content:flex-end;row-gap:7px}
  .player-volume-wrap{flex:0 0 auto}
 }
-.hm-loading-percent{display:block;margin-top:12px;color:#d1d5db;font-size:12px;text-align:center;letter-spacing:.02em}
 #wdlOverlay,#wdlPicker{box-sizing:border-box;overflow:auto;padding:20px max(14px,env(safe-area-inset-left));}
 #wdlPicker{justify-content:flex-start!important;padding-top:max(24px,8vh)!important;padding-bottom:24px!important}
 #wdlPicker>button{width:min(320px,100%);max-width:100%;min-height:46px;flex:0 0 auto}
@@ -5251,20 +5250,20 @@ img, video, iframe, canvas, svg {
     }
 
     .watch-player-wrap .controls-right .player-volume-wrap {
-        grid-column: 1 / -1;
-        order: initial;
+        grid-column: auto;
+        order: 0;
         display: flex;
-        flex: initial;
+        flex: 0 0 auto;
         align-items: center;
         justify-content: center;
-        gap: 10px;
-        width: 100%;
+        gap: 3px;
+        width: auto;
         min-width: 0;
-        padding: 2px 0;
+        padding: 0;
     }
 
     .watch-player-wrap .controls-right .player-volume-wrap input {
-        width: min(180px, 55vw);
+        width: clamp(42px, 12vw, 62px);
         max-width: none;
     }
 

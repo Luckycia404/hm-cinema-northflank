@@ -1887,15 +1887,6 @@ function retryCurrentStream() {
 }
 function setupPlayerEnhancements() {
     setupControlsAutoHide();setupPlayerPreferences();setupNetworkIndicator();setupTimelineInteraction();
-    const loadingText=document.createElement('span');loadingText.id='hmLoadingPercent';loadingText.className='hm-loading-percent';loadingText.textContent='Loading video…';spinner?.appendChild(loadingText);
-    const updateLoading=()=>{
-        if(!video.duration||!video.buffered.length)return;
-        let end=0;for(let i=0;i<video.buffered.length;i++){if(video.buffered.start(i)<=video.currentTime+1)end=Math.max(end,video.buffered.end(i));}
-        const pct=Math.max(0,Math.min(100,Math.round(end/video.duration*100)));
-        loadingText.textContent='Buffered '+pct+'%';
-    };
-    video.addEventListener('progress',updateLoading);video.addEventListener('loadedmetadata',updateLoading);video.addEventListener('waiting',()=>{loadingText.textContent='Buffering…';});
-    video.addEventListener('playing',()=>{loadingText.textContent='Ready';});
     document.getElementById('subtitleStyleBtn')?.addEventListener('click',openSubtitleSettings);
     document.getElementById('sharePlayerBtn')?.addEventListener('click',sharePlayerTitle);
     document.getElementById('reportPlayerBtn')?.addEventListener('click',openPlaybackReport);
