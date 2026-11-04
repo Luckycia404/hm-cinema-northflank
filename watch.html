@@ -929,14 +929,23 @@ function doPlay()      { showSpinner(); video.play().catch(()=>{}); }
 function togglePlay()  { video.paused ? video.play().catch(()=>{}) : video.pause(); }
 function skip(s)       { video.currentTime=Math.max(0,Math.min(video.duration||0,video.currentTime+s)); }
 function updateMuteButton() {
-    const muteBtn = document.getElementById('muteBtn');
-    if (!muteBtn) return;
-    muteBtn.innerHTML = (video.muted || video.volume === 0)
+    const icon = (video.muted || video.volume === 0)
         ? '<i class="fas fa-volume-mute"></i>'
         : '<i class="fas fa-volume-up"></i>';
+    const muteBtn = document.getElementById('muteBtn');
+    const sliderMute = document.getElementById('volumeSliderMute');
+    if (muteBtn) muteBtn.innerHTML = icon;
+    if (sliderMute) sliderMute.innerHTML = icon;
 }
 function toggleMute() {
-    video.muted = !video.muted;
+    // If volume was dragged to zero, restore the last audible level on unmute.
+    if (video.muted || video.volume === 0) {
+        const savedVolume = Number(hmPlayerPrefs.volume);
+        if (video.volume === 0) video.volume = savedVolume > 0 ? Math.min(1, savedVolume) : 1;
+        video.muted = false;
+    } else {
+        video.muted = true;
+    }
     updateMuteButton();
 }
 function adjustVolume(delta) {
@@ -1751,20 +1760,21 @@ function setupPlayerPreferences() {
     if ([.25,.5,.75,1,1.25,1.5,1.75,2].includes(speed)) setPlaybackSpeed(speed);
     const vol=document.getElementById('playerVolumeSlider');
     const mute=document.getElementById('volumeSliderMute');
-    if (typeof hmPlayerPrefs.volume==='number') video.volume=Math.max(0,Math.min(1,hmPlayerPrefs.volume));
-    // Start each title with audio enabled; an old saved mute flag must not
-    // silently mute every new movie or episode. Viewers can still mute manually.
+    if (typeof hmPlayerPrefs.volume==='number' && hmPlayerPrefs.volume>0) video.volume=Math.max(0,Math.min(1,hmPlayerPrefs.volume));
+    // Mute is temporary: never restore or persist a muted state between visits.
     video.muted=false;
-    hmPlayerPrefs.muted=false;
+    delete hmPlayerPrefs.muted;
     if (vol) vol.value=String(Math.round(video.volume*100));
     const update=()=>{
         if(vol) vol.value=String(Math.round(video.volume*100));
         if(mute) mute.innerHTML=(video.muted||video.volume===0)?'<i class="fas fa-volume-mute"></i>':'<i class="fas fa-volume-up"></i>';
-        hmPlayerPrefs.volume=video.volume; hmPlayerPrefs.muted=video.muted; savePlayerPrefs();
+        if (video.volume>0) hmPlayerPrefs.volume=video.volume;
+        delete hmPlayerPrefs.muted;
+        savePlayerPrefs();
         updateMuteButton();
     };
     vol?.addEventListener('input',()=>{video.volume=Number(vol.value)/100;if(video.volume>0)video.muted=false;update();});
-    mute?.addEventListener('click',()=>{video.muted=!video.muted;update();});
+    mute?.addEventListener('click',()=>{toggleMute();update();});
     video.addEventListener('volumechange',update);
     update();
     const quality=hmPlayerPrefs.quality;
