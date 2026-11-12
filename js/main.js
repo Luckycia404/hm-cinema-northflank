@@ -985,36 +985,52 @@ addToHistory(movieId, movieTitle, movieThumbnail);
             }
         }
 
+        function getDailyCatalogPage() {
+    // The provider's page 0 and page 1 can repeat the same list. This order
+    // avoids repeating the same catalogue page on consecutive days.
+    const pages = [2, 3, 4, 0];
+    return pages[Math.floor(Date.now() / 86400000) % pages.length];
+}
+
         async function loadTrending() {
+    // Rotate the first homepage rail through five real provider trending pages.
+    // The page is stable for the day, so users see a fresh selection daily
+    // without randomizing the order on every reload or making extra API calls.
+    const dailyTrendingPage = Math.floor(Date.now() / 86400000) % 5;
     await loadContentWithFallback([
-        '/api/trending?page=0&perPage=24',
+        `/api/trending?page=${dailyTrendingPage}&perPage=24`,
         '/api/hot',
         '/api/popular',
         '/api/homepage'
-    ], 'trendingGrid', 'trending content', 24); 
+    ], 'trendingGrid', 'trending content', 24);
 }
         async function loadMovies() {
+    const dailyCatalogPage = getDailyCatalogPage();
+    const dailyTrendingPage = Math.floor(Date.now() / 86400000) % 5;
     await loadContentWithFallback([
-        '/api/search/2025?type=1&perPage=24',
-        '/api/search/movie?type=1&perPage=24',
+        `/api/search/2025?type=1&page=${dailyCatalogPage}&perPage=24`,
+        `/api/search/movie?type=1&page=${dailyCatalogPage}&perPage=24`,
         '/api/homepage',
-        '/api/trending?page=0&perPage=24'
-    ], 'moviesGrid', 'movies', 24); 
+        `/api/trending?page=${dailyTrendingPage}&perPage=24`
+    ], 'moviesGrid', 'movies', 24);
 }
         async function loadTVSeries() {
+    const dailyCatalogPage = getDailyCatalogPage();
+    const dailyTrendingPage = Math.floor(Date.now() / 86400000) % 5;
     await loadContentWithFallback([
-        '/api/search/2025?type=2&perPage=24',
-        '/api/search/series?type=2&perPage=24',
+        `/api/search/2025?type=2&page=${dailyCatalogPage}&perPage=24`,
+        `/api/search/series?type=2&page=${dailyCatalogPage}&perPage=24`,
         '/api/homepage',
-        '/api/trending?page=0&perPage=24'
-    ], 'tvGrid', 'TV series', 24); 
+        `/api/trending?page=${dailyTrendingPage}&perPage=24`
+    ], 'tvGrid', 'TV series', 24);
 }
         async function loadNewReleases() {
+    const dailyCatalogPage = getDailyCatalogPage();
     await loadContentWithFallback([
-        '/api/search/2025?perPage=24',
-        '/api/search/2026?perPage=24',
+        `/api/search/2025?page=${dailyCatalogPage}&perPage=24`,
+        `/api/search/2026?page=${dailyCatalogPage}&perPage=24`,
         '/api/hot?perPage=24'
-    ], 'newReleasesGrid', 'new releases', 24, true); 
+    ], 'newReleasesGrid', 'new releases', 24, true);
 }
         async function loadAnime() {
     await loadContentWithFallback([
@@ -2779,7 +2795,8 @@ async function openWithExternalPlayer(season = 0, episode = 0) {
             const query = this.value.trim();
             clearTimeout(searchDebounceTimer);
             if (query.length < 2) {
-                closeSuggestions();
+                if (query.length === 0 && document.activeElement === searchInput) loadTrendingSuggestions();
+                else closeSuggestions();
                 return;
             }
             suggestionsBox.innerHTML = '<div class="suggestion-loading"><i class="fas fa-spinner"></i> Searching...</div>';
@@ -2790,6 +2807,8 @@ async function openWithExternalPlayer(season = 0, episode = 0) {
         searchInput.addEventListener('focus', function() {
             if (this.value.trim().length >= 2 && suggestionsBox.children.length > 0) {
                 suggestionsBox.classList.add('show');
+            } else if (!this.value.trim()) {
+                loadTrendingSuggestions();
             }
         });
 
@@ -2811,41 +2830,130 @@ async function openWithExternalPlayer(season = 0, episode = 0) {
             }
         }
 
+        let trendingSuggestionsLoadedAt = 0;
+        let cachedTrendingTerms = [];
+        let trendingSuggestionsInFlight = null;
+
+        async function loadTrendingSuggestions() {
+            if (Date.now() - trendingSuggestionsLoadedAt < 5 * 60 * 1000 && cachedTrendingTerms.length) {
+                renderTrendingSuggestions(cachedTrendingTerms);
+                return;
+            }
+            if (trendingSuggestionsInFlight) return trendingSuggestionsInFlight;
+            suggestionsBox.textContent = 'Loading popular searches...';
+            suggestionsBox.classList.add('show');
+            trendingSuggestionsInFlight = (async () => {
+                try {
+                    const response = await fetchAPI('/api/everyone-search');
+                    const data = response && response.data;
+                    const terms = Array.isArray(data && data.everyoneSearch) ? data.everyoneSearch : [];
+                    if (!terms.length) throw new Error('No trending searches returned');
+                    if (searchInput.value.trim() || document.activeElement !== searchInput) return;
+                    renderTrendingSuggestions(terms);
+                    trendingSuggestionsLoadedAt = Date.now();
+                } catch (error) {
+                    console.warn('[SUGGEST] Trending searches unavailable:', error.message);
+                    if (!searchInput.value.trim() && (!suggestionsBox.children.length || suggestionsBox.textContent.includes('Loading'))) closeSuggestions();
+                } finally {
+                    trendingSuggestionsInFlight = null;
+                }
+            })();
+            return trendingSuggestionsInFlight;
+        }
+
+        function renderTrendingSuggestions(terms) {
+            suggestionsBox.replaceChildren();
+            const heading = document.createElement('div');
+            heading.className = 'suggestion-loading';
+            heading.textContent = 'Popular searches';
+            suggestionsBox.appendChild(heading);
+            terms.slice(0, 8).forEach(term => {
+                const label = String((term && (term.title || term.name || term.keyword)) || term || '').trim();
+                if (!label) return;
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'suggestion-item';
+                item.style.cssText = 'display:flex;width:100%;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer;';
+                item.textContent = label;
+                item.addEventListener('click', () => {
+                    searchInput.value = label;
+                    closeSuggestions();
+                    fetchSuggestions(label);
+                });
+                suggestionsBox.appendChild(item);
+            });
+            suggestionsBox.classList.add('show');
+        }
+
         function renderSuggestions(results, query) {
+            suggestionsBox.replaceChildren();
             if (!results || results.length === 0) {
-                suggestionsBox.innerHTML = '<div class="suggestion-loading">No results found</div>';
+                const empty = document.createElement('div');
+                empty.className = 'suggestion-loading';
+                empty.textContent = 'No results found';
+                suggestionsBox.appendChild(empty);
+                suggestionsBox.classList.add('show');
                 return;
             }
 
-            let html = results.slice(0, 6).map(movie => {
-                const movieId = movie.id || movie.subjectId || '';
-                const title = movie.title || movie.name || 'Unknown';
-                const safeTitle = title.replace(/'/g, "\\'");
-                const year = movie.year || '';
-                const rating = movie.rating || '';
-                const thumbnail = movie.thumbnail || movie.cover?.url || movie.stills?.url || 'https://via.placeholder.com/40x56/333/666?text=...';
-                const subjectType = movie.subjectType || 1;
-        const urlType = subjectType === 2 ? 'tv' : 'movie';
-                const typeName = subjectType === 2 ? 'TV' : 'Movie';
+            results.slice(0, 6).forEach(movie => {
+                const movieId = String(movie.id || movie.subjectId || '');
+                if (!/^[a-zA-Z0-9_-]+$/.test(movieId)) return;
+                const title = String(movie.title || movie.name || 'Unknown');
+                const year = String(movie.year || '');
+                const rating = String(movie.rating || '');
+                const subjectType = Number(movie.subjectType || 1);
+                const urlType = subjectType === 2 ? 'tv' : 'movie';
+                const thumbnailValue = movie.thumbnail || movie.cover?.url || movie.stills?.url || '';
+                let thumbnail = '';
+                try {
+                    const parsed = new URL(thumbnailValue, window.location.origin);
+                    if (parsed.protocol === 'https:' || parsed.origin === window.location.origin) thumbnail = parsed.href;
+                } catch (_) {}
 
-                return `<div class="suggestion-item" onclick="closeSuggestions(); location.href='/movie/${movieId}'">
-                    <img src="${thumbnail}" class="suggestion-poster" loading="lazy" onerror="this.src='https://via.placeholder.com/40x56/333/666?text=...'">
-                    <div class="suggestion-info">
-                        <div class="suggestion-title">${title}</div>
-                        <div class="suggestion-meta">
-                            ${year ? '<span>' + year + '</span>' : ''}
-                            ${rating ? '<span class="star"><i class="fas fa-star"></i> ' + rating + '</span>' : ''}
-                        </div>
-                    </div>
-                    <span class="suggestion-type-badge">${typeName}</span>
-                </div>`;
-            }).join('');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'suggestion-item';
+                item.style.cssText = 'display:flex;width:100%;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer;';
+                item.addEventListener('click', () => {
+                    closeSuggestions();
+                    location.href = '/' + urlType + '/' + encodeURIComponent(movieId);
+                });
+                if (thumbnail) {
+                    const img = document.createElement('img');
+                    img.src = thumbnail;
+                    img.alt = '';
+                    img.className = 'suggestion-poster';
+                    img.loading = 'lazy';
+                    img.onerror = () => img.remove();
+                    item.appendChild(img);
+                }
+                const info = document.createElement('div');
+                info.className = 'suggestion-info';
+                const name = document.createElement('div');
+                name.className = 'suggestion-title';
+                name.textContent = title;
+                info.appendChild(name);
+                const meta = document.createElement('div');
+                meta.className = 'suggestion-meta';
+                if (year) { const span = document.createElement('span'); span.textContent = year; meta.appendChild(span); }
+                if (rating) { const span = document.createElement('span'); span.className = 'star'; span.textContent = '★ ' + rating; meta.appendChild(span); }
+                info.appendChild(meta);
+                item.appendChild(info);
+                const type = document.createElement('span');
+                type.className = 'suggestion-type-badge';
+                type.textContent = subjectType === 2 ? 'TV' : 'Movie';
+                item.appendChild(type);
+                suggestionsBox.appendChild(item);
+            });
 
-            html += `<div class="search-all-btn" onclick="closeSuggestions(); searchContent();">
-                <i class="fas fa-search"></i> See all results for "${query}"
-            </div>`;
-
-            suggestionsBox.innerHTML = html;
+            const all = document.createElement('button');
+            all.type = 'button';
+            all.className = 'search-all-btn';
+            all.style.cssText = 'display:block;width:100%;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer;';
+            all.textContent = 'See all results for ' + String(query || '');
+            all.addEventListener('click', () => { closeSuggestions(); searchContent(); });
+            suggestionsBox.appendChild(all);
             suggestionsBox.classList.add('show');
         }
 

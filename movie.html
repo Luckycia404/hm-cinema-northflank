@@ -1067,8 +1067,12 @@ async function loadRecs(){
 
         let html=`<h3 class="sec-heading"><i class="fas fa-th-large"></i>You May Also Like</h3>
         <div class="recs-grid">`;
-        recs.slice(0,12).forEach(m=>{
-            const id   =m.subjectId||m.id||'';
+        const seenRecommendationIds = new Set([String(movieId)]);
+        recs.forEach(m=>{
+            const id   =String(m.subjectId||m.id||'');
+            if(!id || seenRecommendationIds.has(id)) return;
+            if(seenRecommendationIds.size >= 13) return;
+            seenRecommendationIds.add(id);
             const name =m.title||m.name||'';
             const thumb=getRecPoster(m);
             const yr   =m.releaseDate?String(m.releaseDate).slice(0,4):(m.releaseYear?String(m.releaseYear):(m.year||''));

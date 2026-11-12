@@ -11,6 +11,7 @@ const seo = require('./seo');
 const episodeMetadata = require('./episode-metadata');
 const sitemapBuilder = require('./build-sitemap');
 const seoLanding = require('./seo-landing');
+const { parseJwtExpiry } = require('./loklok-token');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,8 +24,22 @@ app.set('trust proxy', true);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static JS files
-app.use("/js", express.static(path.join(__dirname, "js"), { maxAge: "1h" }));
+const HTML_CACHE = 'no-cache';
+const PUBLIC_HTML_CACHE = 'public, max-age=300, stale-while-revalidate=600';
+const CODE_ASSET_CACHE = 'public, max-age=300, stale-while-revalidate=3600';
+const IMAGE_ASSET_CACHE = 'public, max-age=3600, stale-while-revalidate=86400';
+
+function sendFileWithCache(res, filePath, cacheControl = HTML_CACHE) {
+    return res.sendFile(filePath, { headers: { 'Cache-Control': cacheControl } });
+}
+
+// JS filenames are not content-hashed, so keep browser freshness short after deploys.
+app.use("/js", express.static(path.join(__dirname, "js"), {
+    maxAge: "5m",
+    setHeaders(res) {
+        res.setHeader('Cache-Control', CODE_ASSET_CACHE);
+    }
+}));
 
 // CORS middleware
 app.use((req, res, next) => {
@@ -38,17 +53,36 @@ app.use((req, res, next) => {
         next();
     }
 });
-// -- API Cache-Control headers --
+// API cache policy: cache only successful, reusable content responses.
+// Playback/source/session endpoints and all API errors remain non-cacheable.
 app.use('/api', (req, res, next) => {
     const p = req.path;
-    if (p.startsWith('/sources/') || p.startsWith('/stream/') || p.startsWith('/proxy/') || p.startsWith('/sportsnow/') ||
-        p.startsWith('/captions/') || p.startsWith('/cache/stats')) {
-        res.set('Cache-Control', 'no-store');
-    } else if (p.startsWith('/info/') || p.startsWith('/dubs/')) {
-        res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=3600');
-    } else {
-        res.set('Cache-Control', 'public, max-age=1800, stale-while-revalidate=300');
+    let successPolicy = 'no-store';
+    if (req.method === 'GET' || req.method === 'HEAD') {
+        if (['/homepage', '/trending', '/hot', '/popular', '/search', '/everyone-search'].some(prefix => p === prefix || p.startsWith(prefix + '/'))) {
+            successPolicy = 'public, max-age=300, stale-while-revalidate=1800, stale-if-error=86400';
+        } else if (p.startsWith('/info/')) {
+            successPolicy = 'public, max-age=3600, stale-while-revalidate=86400, stale-if-error=604800';
+        } else if (p.startsWith('/dubs/')) {
+            successPolicy = 'public, max-age=1800, stale-while-revalidate=43200, stale-if-error=86400';
+        } else if (p.startsWith('/recommendations/')) {
+            successPolicy = 'public, max-age=600, stale-while-revalidate=3600, stale-if-error=86400';
+        } else if (p.startsWith('/subtitles/')) {
+            successPolicy = 'public, max-age=300, stale-while-revalidate=3600';
+        } else if (p === '/proxy-subtitle') {
+            successPolicy = 'public, max-age=3600, stale-while-revalidate=86400';
+        }
     }
+    res.set('Cache-Control', 'no-store');
+    const originalSend = res.send;
+    res.send = function (...args) {
+        if (res.statusCode >= 400 || successPolicy === 'no-store') {
+            res.set('Cache-Control', 'no-store');
+        } else {
+            res.set('Cache-Control', successPolicy);
+        }
+        return originalSend.apply(this, args);
+    };
     next();
 });
 
@@ -63,33 +97,31 @@ app.use((req, res, next) => {
 
 
 app.get('/style.css', (req, res) => {
-    // Set the correct MIME type
     res.type('text/css');
-    // Serve the file directly from the moviebox-api directory
-    res.sendFile(path.join(__dirname, 'style.css'));
+    sendFileWithCache(res, path.join(__dirname, 'style.css'), CODE_ASSET_CACHE);
 });
 
 // PWA Manifest
 app.get('/site.webmanifest', (req, res) => {
     res.type('application/manifest+json');
-    res.sendFile(path.join(__dirname, 'site.webmanifest'));
+    sendFileWithCache(res, path.join(__dirname, 'site.webmanifest'), CODE_ASSET_CACHE);
 });
 
 // PWA Service Worker
 app.get('/sw.js', (req, res) => {
     res.type('application/javascript');
-    res.sendFile(path.join(__dirname, 'sw.js'));
+    sendFileWithCache(res, path.join(__dirname, 'sw.js'), HTML_CACHE);
 });
 
 // OG Preview Image
 app.get('/og-image.jpg', (req, res) => {
     res.type('image/jpeg');
-    res.sendFile(path.join(__dirname, 'og-image.jpg'));
+    sendFileWithCache(res, path.join(__dirname, 'og-image.jpg'), IMAGE_ASSET_CACHE);
 });
 
 app.get('/profile.png', (req, res) => {
     res.type('image/png');
-    res.sendFile(path.join(__dirname, 'profile.png'));
+    sendFileWithCache(res, path.join(__dirname, 'profile.png'), IMAGE_ASSET_CACHE);
 });
 
 const SELECTED_HOST = process.env.MOVIEBOX_API_HOST || "h5.aoneroom.com";
@@ -352,19 +384,30 @@ function rewriteDashManifest(manifest, sessionId) {
 }
 // ─── Generic TTL cache ────────────────────────────────────────────────────────
 // makeCache(ttlMs, maxSize) returns a {get, set, size} object backed by a Map.
-// Least-recently-inserted entries are evicted when maxSize is reached.
+// Least-recently-used entries are evicted when maxSize is reached.
 function makeCache(ttlMs, maxSize = 200) {
     const store = new Map();
+    const touch = (key, entry) => {
+        store.delete(key);
+        store.set(key, entry);
+    };
     return {
         get(key) {
             const entry = store.get(key);
             if (!entry) return null;
-            if (Date.now() - entry.ts > ttlMs) { store.delete(key); return null; }
+            if (Date.now() - entry.ts > ttlMs) return null;
+            touch(key, entry);
+            return entry.data;
+        },
+        getStale(key, staleWindowMs) {
+            const entry = store.get(key);
+            if (!entry || Date.now() - entry.ts > ttlMs + staleWindowMs) return null;
+            touch(key, entry);
             return entry.data;
         },
         set(key, data) {
-            store.set(key, { data, ts: Date.now() });
-            if (store.size > maxSize) store.delete(store.keys().next().value);
+            touch(key, { data, ts: Date.now() });
+            while (store.size > maxSize) store.delete(store.keys().next().value);
         },
         del(key) { store.delete(key); },
         size() { return store.size; }
@@ -388,35 +431,24 @@ function coalesceRequest(key, loader) {
 const INFO_TTL   = 24 * 60 * 60 * 1000; // 24 h  — title/cast/detailPath rarely change
 const DUBS_TTL   = 12 * 60 * 60 * 1000; // 12 h  — dub lists are stable
 const SEARCH_TTL =      30 * 60 * 1000; // 30 min — search results
-const HOME_TTL   =      30 * 60 * 1000; // 30 min — homepage/trending rails
+const HOME_TTL   =      15 * 60 * 1000; // 15 min — homepage/trending rails refresh more often
 
 const infoCache   = makeCache(INFO_TTL,   10000);
 const dubsCache   = makeCache(DUBS_TTL,   5000);
 const searchCache = makeCache(SEARCH_TTL, 2000);
-const homeCache   = makeCache(HOME_TTL,    20);
+const homeCache   = makeCache(HOME_TTL,    40);
+const recommendationsCache = makeCache(6 * 60 * 60 * 1000, 2000);
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-// LOK_LOK token auto-refresh — the token's 'ext' claim expires 5 min after issue.
-// We keep a fresh token in memory and re-fetch it before it expires.
+// LokLok JWT refresh. The provider's short "ext" claim can already be in
+// the past while its normal JWT "exp" is still valid; live API probes confirmed
+// that such a token continues to work. Refresh against exp, not ext, to avoid
+// refreshing on every API request.
 let _lokLokToken = process.env.LOK_LOK_TOKEN || '';
-let _lokLokTokenExtExpiry = 0;
+let _lokLokTokenExpiry = parseJwtExpiry(_lokLokToken);
 
-function _parseLokLokExt(token) {
-    try {
-        const payload = token.split('.')[1];
-        const padded = payload + '='.repeat((4 - payload.length % 4) % 4);
-        const decoded = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
-        return parseInt(decoded.ext) || 0;
-    } catch(e) { return 0; }
-}
-
-// Initialise expiry from the env token at startup
-if (_lokLokToken) {
-    _lokLokTokenExtExpiry = _parseLokLokExt(_lokLokToken);
-}
-
-// Mutex: only one refresh in-flight at a time
+// Mutex: only one refresh in-flight at a time.
 let _lokLokRefreshPromise = null;
 
 async function _doLokLokRefresh() {
@@ -426,7 +458,9 @@ async function _doLokLokRefresh() {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-A325F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36',
                 'Accept': 'application/json',
-                'X-Client-Info': JSON.stringify({timezone: 'Africa/Accra'})
+                'X-Client-Info': JSON.stringify({ timezone: 'Africa/Accra' }),
+                'Cache-Control': 'no-cache, no-store',
+                'Pragma': 'no-cache'
             },
             timeout: 10000
         }
@@ -437,10 +471,16 @@ async function _doLokLokRefresh() {
         for (const cookie of cookies) {
             const match = cookie.match(/token=([^;]+)/);
             if (match && match[1]) {
-                _lokLokToken = match[1];
-                _lokLokTokenExtExpiry = _parseLokLokExt(_lokLokToken);
+                const nextToken = match[1];
+                const nextExpiry = parseJwtExpiry(nextToken);
+                const now = Math.floor(Date.now() / 1000);
+                if (!nextExpiry || nextExpiry <= now + 60) {
+                    throw new Error('Provider returned a JWT that is expired or within 60 seconds of expiry');
+                }
+                _lokLokToken = nextToken;
+                _lokLokTokenExpiry = nextExpiry;
                 process.env.LOK_LOK_TOKEN = _lokLokToken;
-                console.log('[LokLok] Token refreshed, ext valid until:', new Date(_lokLokTokenExtExpiry * 1000).toISOString());
+                console.log('[LokLok] JWT refreshed, valid until:', new Date(_lokLokTokenExpiry * 1000).toISOString());
                 return;
             }
         }
@@ -448,18 +488,15 @@ async function _doLokLokRefresh() {
     throw new Error('No token cookie in response');
 }
 
-// ── Proactive background refresh ──────────────────────────────────────────────
-// Refresh shortly before the JWT's actual expiry instead of calling the
-// upstream every 45 seconds regardless of token lifetime.
+// Refresh daily, or five minutes before the JWT actually expires.
 let _bgRefreshTimer = null;
-let _bgLastRefreshAt = 0; // unix ms of last successful refresh
-
 function _nextBgRefreshDelay() {
     const now = Math.floor(Date.now() / 1000);
-    if (_lokLokTokenExtExpiry > now) {
-        // Refresh 30 seconds before expiry, bounded so an unknown/very long
-        // token never schedules an unexpectedly distant refresh.
-        return Math.max(30 * 1000, Math.min(4 * 60 * 1000, (_lokLokTokenExtExpiry - now - 30) * 1000));
+    if (_lokLokTokenExpiry > now + 24 * 60 * 60) {
+        return Math.min(24 * 60 * 60 * 1000, (_lokLokTokenExpiry - now - 24 * 60 * 60) * 1000);
+    }
+    if (_lokLokTokenExpiry > now + 5 * 60) {
+        return Math.max(60 * 1000, (_lokLokTokenExpiry - now - 5 * 60) * 1000);
     }
     return 60 * 1000;
 }
@@ -475,39 +512,44 @@ function _startBgRefreshLoop(delayMs = _nextBgRefreshDelay()) {
             _lokLokRefreshPromise = _doLokLokRefresh()
                 .finally(() => { _lokLokRefreshPromise = null; });
             await _lokLokRefreshPromise;
-            _bgLastRefreshAt = Date.now();
-        } catch(e) {
-            const status = e.response && e.response.status;
+        } catch (error) {
+            const status = error.response && error.response.status;
             if (status === 429) {
                 console.warn('[LokLok] Rate limited (429) — retrying refresh in 5 min');
                 _startBgRefreshLoop(5 * 60 * 1000);
                 return;
             }
-            console.warn('[LokLok] Background refresh failed:', e.message);
+            console.warn('[LokLok] Background refresh failed:', error.message);
         }
         _startBgRefreshLoop();
     }, delayMs);
 }
 
-// Kick off the background interval once the module loads
 _startBgRefreshLoop();
 
 async function getLokLokToken() {
     const now = Math.floor(Date.now() / 1000);
-    // The token can be present in .env but already expired. Do not let the
-    // first playback request silently fall back to the older empty-stream
-    // contract; refresh whenever the JWT is missing or within 30 seconds of
-    // expiry.
-    const tokenNeedsRefresh = !_lokLokToken ||
-        (_lokLokTokenExtExpiry > 0 && _lokLokTokenExtExpiry <= now + 30);
+    const tokenNeedsRefresh = !_lokLokToken || !_lokLokTokenExpiry || _lokLokTokenExpiry <= now + 5 * 60;
     if (tokenNeedsRefresh) {
         if (!_lokLokRefreshPromise) {
-            console.log('[LokLok] Token missing or expired — doing synchronous refresh...');
+            console.log('[LokLok] JWT missing or near expiry — refreshing once...');
             _lokLokRefreshPromise = _doLokLokRefresh()
-                .catch(e => console.warn('[LokLok] Sync refresh failed:', e.message))
+                .catch(error => {
+                    // Continue using the previous token only while its JWT exp
+                    // is still valid. Never return a known-expired credential.
+                    if (_lokLokToken && _lokLokTokenExpiry > Math.floor(Date.now() / 1000) + 30) {
+                        console.warn('[LokLok] Refresh failed; keeping still-valid JWT:', error.message);
+                        return;
+                    }
+                    throw error;
+                })
                 .finally(() => { _lokLokRefreshPromise = null; });
         }
         await _lokLokRefreshPromise;
+        _startBgRefreshLoop();
+    }
+    if (!_lokLokToken || !_lokLokTokenExpiry || _lokLokTokenExpiry <= Math.floor(Date.now() / 1000)) {
+        throw new Error('No valid LokLok JWT is available');
     }
     return _lokLokToken;
 }
@@ -585,13 +627,13 @@ async function ensureCookiesAreAssigned() {
                     .join('; ');
                 if (jarCookies) {
                     relayCookies = jarCookies;
-                    console.log('Relay cookies from jar:', relayCookies.substring(0, 60) + '...');
+                    console.log('Relay cookie obtained from session jar');
                 } else {
                     // Fallback: try the x-set-cookie header the relay echoes back
                     const hdr = response.headers['x-set-cookie'];
                     if (hdr) {
                         relayCookies = Array.isArray(hdr) ? hdr.map(c => c.split(';')[0]).join('; ') : hdr.split(';')[0];
-                        console.log('Relay cookies from x-set-cookie header:', relayCookies.substring(0, 60) + '...');
+                        console.log('Relay cookie obtained from response header');
                     } else {
                         console.warn('No relay cookie obtained – relay requests may get 403');
                     }
@@ -605,10 +647,8 @@ async function ensureCookiesAreAssigned() {
             cookiesInitializedAt = Date.now();
             console.log('Session cookies initialized successfully');
             
-            // Log available cookies for debugging
-            if (response.headers['set-cookie']) {
-                console.log('Received cookies:', response.headers['set-cookie']);
-            }
+            // Never log Set-Cookie values: they contain live session credentials.
+            if (response.headers['set-cookie']) console.log('Provider session cookie received');
             
         } catch (error) {
             console.error('Failed to get app info:', error.message);
@@ -685,7 +725,7 @@ async function makeApiRequestWithCookies(url, options = {}) {
         const response = await axiosInstance(config);
         return response;
     } catch (error) {
-        console.error(`Request with cookies to ${url} failed:`, error.response?.status, error.response?.statusText);
+        console.error(`Authenticated provider request to ${new URL(url).host} failed:`, error.response?.status, error.response?.statusText);
         throw error;
     }
 }
@@ -978,7 +1018,9 @@ async function pipeCdnStream(res, targetUrl, contentDisposition = null, extraHea
         const headers = {
             'Content-Type': response.headers['content-type'] || 'video/mp4',
             'Accept-Ranges': 'bytes',
-            'Cache-Control': 'no-cache',
+            // Short private browser cache helps repeated byte-range reads without
+            // exposing signed media responses to shared/CDN caches. Downloads stay no-store.
+            'Cache-Control': contentDisposition ? 'no-store' : 'private, max-age=30',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Headers': 'Range',
             'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges'
@@ -1215,7 +1257,7 @@ app.get('/api/sportsnow/clip', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    sendFileWithCache(res, path.join(__dirname, 'index.html'), PUBLIC_HTML_CACHE);
 });
 
 // Focused, useful landing pages for broad movie/series discovery searches.
@@ -1223,6 +1265,7 @@ for (const landingPath of Object.keys(seoLanding.PAGES)) {
     app.get(landingPath, (req, res) => {
         const html = seoLanding.render(landingPath);
         if (!html) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+        res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
         res.type('html').send(html);
     });
 }
@@ -1315,7 +1358,7 @@ async function handleSeoTitlePage(req, res, expectedType) {
     }
     // Non-crawler: serve movie.html instantly; client JS fetches data itself
     if (!isCrawler(req)) {
-        return res.sendFile(path.join(__dirname, 'movie.html'));
+        return sendFileWithCache(res, path.join(__dirname, 'movie.html'), PUBLIC_HTML_CACHE);
     }
     try {
         const data = await seo.fetchMovieCached(id);
@@ -1348,6 +1391,7 @@ async function handleSeoTitlePage(req, res, expectedType) {
             isMusic: actualType === 'music',
             canonicalUrl: canonical,
         });
+        res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600, stale-if-error=86400');
         res.type('html').send(html);
     } catch (e) {
         const upstreamStatus = Number(e.response && e.response.status) || 0;
@@ -1368,7 +1412,7 @@ app.get('/tv/:id',            (req, res) => handleSeoTitlePage(req, res, 'tv'));
 app.get('/tv/:id/:slug',      (req, res) => handleSeoTitlePage(req, res, 'tv'));
 app.get('/music/:id',         (req, res) => handleSeoTitlePage(req, res, 'music'));
 app.get('/music/:id/:slug',   (req, res) => handleSeoTitlePage(req, res, 'music'));
-app.get('/sports',            (req, res) => res.sendFile(path.join(__dirname, 'sports.html')));
+app.get('/sports', (req, res) => sendFileWithCache(res, path.join(__dirname, 'sports.html'), PUBLIC_HTML_CACHE));
 app.get('/watch/:id', async (req, res) => {
     const id = String(req.params.id || '');
     if (!/^\d+$/.test(id)) return res.status(404).sendFile(path.join(__dirname, '404.html'));
@@ -1381,9 +1425,14 @@ app.get('/watch/:id', async (req, res) => {
         const title = subject.title;
         const description = String(subject.description || ('Watch ' + title + ' on HM CINEMA.')).replace(/\s+/g, ' ').trim().slice(0, 300);
         const poster = (subject.cover && subject.cover.url) || subject.thumbnail || '';
-        const canonical = seo.baseUrl(req) + '/watch/' + encodeURIComponent(id);
+        // Playback URLs are noindex and consolidate their canonical signal on
+        // the movie/series detail page, which is the page we want indexed.
+        const detailPath = seo.urlFor(subject);
+        const canonical = detailPath
+            ? seo.baseUrl(req) + detailPath
+            : seo.baseUrl(req) + '/watch/' + encodeURIComponent(id);
         html = html.replace(/<title[^>]*>[\s\S]*?<\/title>/i, '<title>' + esc('Watch ' + title + ' Online - HM CINEMA') + '</title>');
-        html = html.replace(/<meta\s+name=["']robots["'][^>]*>/i, '<meta name="robots" content="index,follow,max-image-preview:large,max-video-preview:-1">');
+        html = html.replace(/<meta\s+name=["']robots["'][^>]*>/i, '<meta name="robots" content="noindex,follow">');
         const metadata = '<link rel="canonical" href="' + esc(canonical) + '">\n' +
             '<meta name="description" content="' + esc(description) + '">\n' +
             '<meta property="og:type" content="video.other">\n' +
@@ -1397,17 +1446,18 @@ app.get('/watch/:id', async (req, res) => {
         html = html.replace('<div class="wb-header" id="wbHeader" style="display:none">', '<div class="wb-header" id="wbHeader" style="display:block">');
         html = html.replace('<h2 class="wb-title" id="wbTitle"></h2>', '<h1 class="wb-title" id="wbTitle">' + esc(title) + '</h1>');
         html = html.replace('<div class="wb-meta" id="wbMeta"></div>', '<div class="wb-meta" id="wbMeta"></div><p style="color:#aaa;line-height:1.6;margin-top:8px;font-size:14px">' + esc(description) + '</p>');
+        res.set('Cache-Control', PUBLIC_HTML_CACHE);
         return res.type('html').send(html);
     } catch (error) {
         console.warn('[WATCH SEO] Metadata lookup failed for ' + id + ': ' + error.message);
-        return res.sendFile(path.join(__dirname, 'watch.html'));
+        return sendFileWithCache(res, path.join(__dirname, 'watch.html'), HTML_CACHE);
     }
 });
 
 // Static metadata routes
 app.get('/sitemap.xml', async (req, res) => {
     try {
-        res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
+        res.set('Cache-Control', 'public, max-age=900, stale-while-revalidate=3600, stale-if-error=86400');
         // Serve the pre-built full-catalog sitemap if it exists (generated by build-sitemap.js).
         // Falls back to the live dynamic sitemap so the route never breaks.
         const _prebuilt = sitemapBuilder.getSitemapOutputPath();
@@ -1431,17 +1481,18 @@ app.get('/sitemap.xml', async (req, res) => {
 
 app.get('/robots.txt', (req, res) => {
     const robots = `User-agent: *\nAllow: /\n\nSitemap: ${seo.baseUrl(req)}/sitemap.xml\n`;
+    res.set('Cache-Control', HTML_CACHE);
     res.type('text/plain').send(robots);
 });
 
 app.get('/site.webmanifest', (req, res) => {
-    res.sendFile(path.join(__dirname, 'site.webmanifest'));
+    sendFileWithCache(res, path.join(__dirname, 'site.webmanifest'), CODE_ASSET_CACHE);
 });
 
 // Fallback icon route: serves local icon.png when present; otherwise a 1x1 transparent PNG
 app.get('/icon.png', (req, res) => {
     const iconPath = path.join(__dirname, 'icon.png');
-    res.sendFile(iconPath, (err) => {
+    res.sendFile(iconPath, { headers: { 'Cache-Control': IMAGE_ASSET_CACHE } }, (err) => {
         if (err) {
             const transparentPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOeZgBsAAAAASUVORK5CYII=';
             const buffer = Buffer.from(transparentPngBase64, 'base64');
@@ -1453,7 +1504,7 @@ app.get('/icon.png', (req, res) => {
 
 // Standard favicon route for crawlers and browsers
 app.get('/favicon.ico', (req, res) => {
-    res.sendFile(path.join(__dirname, 'favicon.ico'));
+    sendFileWithCache(res, path.join(__dirname, 'favicon.ico'), IMAGE_ASSET_CACHE);
 });
 
 // Homepage content
@@ -1474,6 +1525,11 @@ app.get('/api/homepage', async (req, res) => {
         homeCache.set(_hk, _hr);
         res.json(_hr);
     } catch (error) {
+        const stale = homeCache.getStale('homepage', 6 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Homepage error:', error.message);
         res.status(500).json({
             status: 'error',
@@ -1511,6 +1567,13 @@ app.get('/api/trending', async (req, res) => {
         homeCache.set(_tk, _tr);
         res.json(_tr);
     } catch (error) {
+        const page = parseInt(req.query.page) || 0;
+        const perPage = parseInt(req.query.perPage) || 18;
+        const stale = homeCache.getStale(`trending_${page}_${perPage}`, 6 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Trending error:', error.message);
         res.status(500).json({
             status: 'error',
@@ -1538,6 +1601,11 @@ app.get('/api/hot', async (req, res) => {
         homeCache.set('hot', _hotr);
         res.json(_hotr);
     } catch (error) {
+        const stale = homeCache.getStale('hot', 6 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Hot content error:', error.message);
         res.status(500).json({
             status: 'error',
@@ -1565,6 +1633,11 @@ app.get('/api/popular', async (req, res) => {
         homeCache.set('popular', _popr);
         res.json(_popr);
     } catch (error) {
+        const stale = homeCache.getStale('popular', 6 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Popular searches error:', error.message);
         res.status(500).json({
             status: 'error',
@@ -1625,6 +1698,15 @@ app.get('/api/search/:query', async (req, res) => {
         searchCache.set(`${query}_${page}_${perPage}_${subjectType}`, _sqr);
         res.json(_sqr);
     } catch (error) {
+        const query = req.params.query || req.query.q || 'movie';
+        const page = parseInt(req.query.page) || 1;
+        const perPage = parseInt(req.query.perPage) || 24;
+        const subjectType = parseInt(req.query.type) || SubjectType.ALL;
+        const stale = searchCache.getStale(`${query}_${page}_${perPage}_${subjectType}`, 6 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Search error:', error.message);
         res.status(500).json({
             status: 'error',
@@ -1685,6 +1767,15 @@ app.get('/api/search', async (req, res) => {
         searchCache.set(`${query}_${page}_${perPage}_${subjectType}`, _sq2r);
         res.json(_sq2r);
     } catch (error) {
+        const query = req.params.query || req.query.q || 'movie';
+        const page = parseInt(req.query.page) || 1;
+        const perPage = parseInt(req.query.perPage) || 24;
+        const subjectType = parseInt(req.query.type) || SubjectType.ALL;
+        const stale = searchCache.getStale(`${query}_${page}_${perPage}_${subjectType}`, 6 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Search error:', error.message);
         res.status(500).json({
             status: 'error',
@@ -1828,8 +1919,15 @@ app.get('/api/info/:movieId', async (req, res) => {
         }
         res.json(_ir);
     } catch (error) {
-        console.error('Info error:', error.message);
         const _upStatus = error.response && error.response.status;
+        if (_upStatus !== 404) {
+            const stale = infoCache.getStale(req.params.movieId, 7 * 24 * 60 * 60 * 1000);
+            if (stale) {
+                res.set('Warning', '110 - "Response is stale"');
+                return res.json(stale);
+            }
+        }
+        console.error('Info error:', error.message);
         const _httpCode = (_upStatus === 404) ? 404 : 500;
         res.status(_httpCode).json({
             status: 'error',
@@ -2621,7 +2719,7 @@ app.get('/api/stream', async (req, res) => {
             });
         }
 
-        console.log('Streaming from:', targetUrl);
+        console.log('Streaming from approved CDN host:', new URL(targetUrl).host);
         await pipeCdnStream(res, targetUrl);
     } catch (error) {
         console.error('Stream proxy error:', error.message);
@@ -2724,7 +2822,7 @@ app.get('/api/proxy-subtitle', async (req, res) => {
             });
         }
 
-        console.log('Proxying subtitle from:', targetUrl);
+        console.log('Proxying subtitle from approved CDN host:', new URL(targetUrl).host);
         
         // hakunaymatata.com cacdn CDN validates Referer/Origin — must use lok-lok.cc
         const subReferer = targetUrl.includes('hakunaymatata.com') ? 'https://lok-lok.cc/' : HOST_URL + '/';
@@ -2903,10 +3001,10 @@ function convertSrtToVtt(srtContent) {
 
 // Dubs -- returns all available dubbed versions for a movie/show
 app.get('/api/dubs/:movieId', async (req, res) => {
+    const { movieId } = req.params;
+    const cacheKey = movieId + ':' + String(req.query.detailPath || '');
     try {
-        const { movieId } = req.params;
-
-        const _dc = dubsCache.get(movieId);
+        const _dc = dubsCache.get(cacheKey);
         if (_dc) return res.json(_dc);
 
         const jwt = await getLokLokToken();
@@ -2962,7 +3060,7 @@ app.get('/api/dubs/:movieId', async (req, res) => {
 
         if (dubs.length === 0) {
             const _dnr = { status: 'success', creator: 'Hector Manuel ', data: { movieId, detailPath, title: subject.title || '', hasDubs: false, dubs: [] } };
-            dubsCache.set(movieId, _dnr);
+            dubsCache.set(cacheKey, _dnr);
             return res.json(_dnr);
         }
 
@@ -2992,10 +3090,15 @@ app.get('/api/dubs/:movieId', async (req, res) => {
                 }))
             }
         };
-        dubsCache.set(movieId, _dr);
+        dubsCache.set(cacheKey, _dr);
         res.json(_dr);
 
     } catch (error) {
+        const stale = dubsCache.getStale(req.params.movieId + ':' + String(req.query.detailPath || ''), 48 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Dubs error:', error.message);
         res.status(500).json({
             status: 'error',
@@ -3013,29 +3116,42 @@ app.get('/api/dubs/:movieId', async (req, res) => {
 app.get('/api/recommendations/:movieId', async (req, res) => {
     try {
         const { movieId } = req.params;
-        const page = parseInt(req.query.page) || 1;
-        const perPage = parseInt(req.query.perPage) || 12;
-        const jwt = await getLokLokToken();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const perPage = Math.min(48, Math.max(1, parseInt(req.query.perPage, 10) || 12));
+        const cacheKey = `${movieId}_${page}_${perPage}`;
+        const cached = recommendationsCache.get(cacheKey);
+        if (cached) return res.json(cached);
 
-        const response = await axiosInstance({
-            method: 'GET',
-            url: SEARCH_HOST_URL + '/wefeed-h5api-bff/subject/detail-rec',
-            params: { subjectId: movieId, page, perPage },
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': 'Bearer ' + jwt,
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                'Referer': 'https://h5-api.aoneroom.com/',
-                'Origin': 'https://h5-api.aoneroom.com',
-                'X-Request-Lang': 'en',
-                'Accept-Language': 'en-US,en;q=0.9'
-            },
-            timeout: 15000
+        const result = await coalesceRequest(`api:recommendations:${cacheKey}`, async () => {
+            const jwt = await getLokLokToken();
+            const response = await axiosInstance({
+                method: 'GET',
+                url: SEARCH_HOST_URL + '/wefeed-h5api-bff/subject/detail-rec',
+                params: { subjectId: movieId, page, perPage },
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ' + jwt,
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                    'Referer': 'https://h5-api.aoneroom.com/',
+                    'Origin': 'https://h5-api.aoneroom.com',
+                    'X-Request-Lang': 'en',
+                    'Accept-Language': 'en-US,en;q=0.9'
+                },
+                timeout: 15000
+            });
+            const data = (response.data && response.data.data) ? response.data.data : response.data;
+            return { status: 'success', creator: 'Hector Manuel ', data };
         });
-
-        const data = (response.data && response.data.data) ? response.data.data : response.data;
-        res.json({ status: 'success', creator: 'Hector Manuel ', data });
+        recommendationsCache.set(cacheKey, result);
+        res.json(result);
     } catch (error) {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const perPage = Math.min(48, Math.max(1, parseInt(req.query.perPage, 10) || 12));
+        const stale = recommendationsCache.getStale(`${req.params.movieId}_${page}_${perPage}`, 24 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Recommendations error:', error.message);
         res.status(500).json({ status: 'error', creator: 'Hector Manuel ', message: 'Failed to fetch recommendations', error: error.message });
     }
@@ -3045,26 +3161,36 @@ app.get('/api/recommendations/:movieId', async (req, res) => {
 // Source: h5-api.aoneroom.com/wefeed-h5api-bff/subject/everyone-search
 app.get('/api/everyone-search', async (req, res) => {
     try {
-        const jwt = await getLokLokToken();
+        const cached = homeCache.get('everyone-search');
+        if (cached) return res.json(cached);
 
-        const response = await axiosInstance({
-            method: 'GET',
-            url: SEARCH_HOST_URL + '/wefeed-h5api-bff/subject/everyone-search',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': 'Bearer ' + jwt,
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                'Referer': 'https://h5-api.aoneroom.com/',
-                'Origin': 'https://h5-api.aoneroom.com',
-                'X-Request-Lang': 'en',
-                'Accept-Language': 'en-US,en;q=0.9'
-            },
-            timeout: 15000
+        const result = await coalesceRequest('api:everyone-search', async () => {
+            const jwt = await getLokLokToken();
+            const response = await axiosInstance({
+                method: 'GET',
+                url: SEARCH_HOST_URL + '/wefeed-h5api-bff/subject/everyone-search',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ' + jwt,
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                    'Referer': 'https://h5-api.aoneroom.com/',
+                    'Origin': 'https://h5-api.aoneroom.com',
+                    'X-Request-Lang': 'en',
+                    'Accept-Language': 'en-US,en;q=0.9'
+                },
+                timeout: 15000
+            });
+            const data = (response.data && response.data.data) ? response.data.data : response.data;
+            return { status: 'success', creator: 'Hector Manuel ', data };
         });
-
-        const data = (response.data && response.data.data) ? response.data.data : response.data;
-        res.json({ status: 'success', creator: 'Hector Manuel ', data });
+        homeCache.set('everyone-search', result);
+        res.json(result);
     } catch (error) {
+        const stale = homeCache.getStale('everyone-search', 6 * 60 * 60 * 1000);
+        if (stale) {
+            res.set('Warning', '110 - "Response is stale"');
+            return res.json(stale);
+        }
         console.error('Everyone-search error:', error.message);
         res.status(500).json({ status: 'error', creator: 'Hector Manuel ', message: 'Failed to fetch trending searches', error: error.message });
     }
@@ -3089,73 +3215,105 @@ app.get('/api/captions/:movieId', async (req, res) => {
             'Origin':  'https://lok-lok.cc'
         };
 
-        // Step 1: get stream ID + detailPath
-        // Prefer the sourcesCache (already populated by /api/sources calls) to avoid a redundant upstream hit
+        // Step 1: collect both DASH and MP4 stream IDs from the resolved source
+        // cache. DASH subtitles must use the DASH manifest's own provider ID.
         const cacheKey = movieId + '_' + season + '_' + episode;
-        const cached   = getCachedSources(cacheKey);
-        let streamId   = cached && cached.downloads && cached.downloads[0] && cached.downloads[0].id || null;
+        const cached = getCachedSources(cacheKey);
+        const cachedData = cached && cached.data ? cached.data : cached;
+        const processedSources = Array.isArray(cachedData && cachedData.processedSources) ? cachedData.processedSources : [];
+        const dashSource = processedSources.find(source => String(source && source.format).toLowerCase() === 'dash' && source.id);
+        const mp4Source = processedSources.find(source => String(source && source.format).toLowerCase() === 'mp4' && source.id);
+        const rawDownloads = Array.isArray(cachedData && cachedData.downloads) ? cachedData.downloads : [];
+        let dashId = dashSource && dashSource.id || (Array.isArray(cachedData && cachedData.dash) && cachedData.dash[0] && cachedData.dash[0].id) || null;
+        let mp4Id = mp4Source && mp4Source.id || rawDownloads[0] && rawDownloads[0].id || null;
         let detailPath = null;
+        let cachedCaptions = Array.isArray(cachedData && cachedData.captions) ? cachedData.captions : [];
 
-        // If not cached, self-call /api/sources to trigger the full resolution pipeline
-        if (!streamId) {
+        // If the player has not populated the source cache, resolve sources first.
+        if (!dashId && !mp4Id) {
             try {
                 const selfResp = await axios.get(
-                    'http://127.0.0.1:' + PORT + '/api/sources/' + movieId +
+                    'http://127.0.0.1:' + PORT + '/api/sources/' + encodeURIComponent(movieId) +
                     '?season=' + season + '&episode=' + episode,
-                    { timeout: 20000 }
+                    { timeout: 25000 }
                 );
                 const srcData = selfResp.data && selfResp.data.data;
-                if (srcData && srcData.downloads && srcData.downloads.length > 0) {
-                    streamId = srcData.downloads[0].id;
-                }
-            } catch(e) {
-                console.warn('Captions: self-source lookup failed:', e.message);
+                const srcList = Array.isArray(srcData && srcData.processedSources) ? srcData.processedSources : [];
+                const dash = srcList.find(source => String(source && source.format).toLowerCase() === 'dash' && source.id);
+                const mp4 = srcList.find(source => String(source && source.format).toLowerCase() === 'mp4' && source.id);
+                if (dash) dashId = dash.id;
+                if (mp4) mp4Id = mp4.id;
+                if (!mp4Id && srcData && Array.isArray(srcData.downloads) && srcData.downloads[0]) mp4Id = srcData.downloads[0].id;
+                if (!cachedCaptions.length && Array.isArray(srcData && srcData.captions)) cachedCaptions = srcData.captions;
+            } catch (error) {
+                console.warn('Captions: source lookup failed:', error.message);
             }
         }
 
-        // Step 1b: get detailPath from /api/info (lightweight, cached by browser usually)
+        // Resolve the provider detail path needed by the caption endpoint.
         try {
             const infoResp = await axios.get(
-                'http://127.0.0.1:' + PORT + '/api/info/' + movieId,
+                'http://127.0.0.1:' + PORT + '/api/info/' + encodeURIComponent(movieId),
                 { timeout: 10000 }
             );
             detailPath = infoResp.data && infoResp.data.data && infoResp.data.data.subject && infoResp.data.data.subject.detailPath || null;
-        } catch(e) {
-            console.warn('Captions: info lookup failed:', e.message);
+        } catch (error) {
+            console.warn('Captions: info lookup failed:', error.message);
         }
 
-        if (!streamId) {
+        if (!dashId && !mp4Id) {
             return res.status(404).json({
-                status: 'error',
-                creator: 'Hector Manuel ',
-                message: 'Could not resolve stream ID — no sources available for this title'
+                status: 'error', creator: 'Hector Manuel ',
+                message: 'Could not resolve a DASH or MP4 stream ID for subtitles'
             });
         }
 
-        // Step 2: fetch signed caption URLs from h5-api subject/caption (same pattern as sources endpoint)
-        const captionUrl = 'https://h5-api.aoneroom.com/wefeed-h5api-bff/subject/caption' +
-            '?format=MP4&id=' + streamId +
-            '&subjectId=' + movieId +
-            '&detailPath=' + encodeURIComponent(detailPath || '');
+        // Try the exact playback format first: DASH captions need the DASH ID.
+        // MP4 is a compatibility fallback for providers/titles without DASH captions.
+        const captionAttempts = [];
+        if (dashId) captionAttempts.push({ format: 'DASH', id: dashId });
+        if (mp4Id) captionAttempts.push({ format: 'MP4', id: mp4Id });
+        let captions = cachedCaptions;
+        let captionSource = captions.length ? 'playback' : null;
+        const failures = [];
 
-        const captionResp = await axiosInstance.get(captionUrl, {
-            headers: ghanaHeaders,
-            timeout: 10000
-        });
+        for (const attempt of captionAttempts) {
+            if (captions.length) break;
+            const captionUrl = 'https://h5-api.aoneroom.com/wefeed-h5api-bff/subject/caption' +
+                '?format=' + encodeURIComponent(attempt.format) +
+                '&id=' + encodeURIComponent(attempt.id) +
+                '&subjectId=' + encodeURIComponent(movieId) +
+                '&detailPath=' + encodeURIComponent(detailPath || '');
+            try {
+                const captionResp = await axiosInstance.get(captionUrl, { headers: ghanaHeaders, timeout: 10000 });
+                const found = (captionResp.data && captionResp.data.data && captionResp.data.data.captions) || [];
+                if (found.length) {
+                    captions = found;
+                    captionSource = attempt.format;
+                    break;
+                }
+            } catch (error) {
+                failures.push(attempt.format + ':' + (error.response && error.response.status || error.message));
+                console.warn('Captions: ' + attempt.format + ' lookup failed; trying next available format');
+            }
+        }
 
-        const captions = (captionResp.data && captionResp.data.data && captionResp.data.data.captions) || [];
+        if (!captions.length && failures.length === captionAttempts.length) {
+            console.warn('Captions unavailable for movieId ' + movieId + ' (' + failures.join(', ') + ')');
+        }
 
         const filtered = langFilter
             ? captions.filter(c => (c.lan || '').toLowerCase().startsWith(langFilter) || (c.lanName || '').toLowerCase().includes(langFilter))
             : captions;
 
-        console.log('Captions: resolved ' + captions.length + ' caption(s) for movieId ' + movieId);
+        console.log('Captions: resolved ' + captions.length + ' caption(s) for movieId ' + movieId + (captionSource ? ' via ' + captionSource : ''));
 
         res.json({
             status: 'success',
             creator: 'Hector Manuel ',
             data: {
-                streamId,
+                streamId: dashId || mp4Id,
+                captionSource,
                 detailPath,
                 totalCaptions: captions.length,
                 captions: filtered.map(c => ({
@@ -3238,8 +3396,9 @@ app.get('/api/cache/stats', (req, res) => {
             info:    { entries: infoCache.size(),   ttl: '24h' },
             dubs:    { entries: dubsCache.size(),   ttl: '12h' },
             search:  { entries: searchCache.size(), ttl: '30m' },
-            home:    { entries: homeCache.size(),   ttl: '30m' },
-            sources: { entries: sourcesCache.size, ttl: '8m'  }
+            home:    { entries: homeCache.size(),   ttl: '15m' },
+            sources: { entries: sourcesCache.size, ttl: '8m'  },
+            recommendations: { entries: recommendationsCache.size(), ttl: '6h' }
         }
     });
 });
@@ -3280,11 +3439,32 @@ process.on('unhandledRejection', (reason) => {
 if (!process.env.VERCEL) {
     // (cache stats endpoint moved above 404 handler)
 
-app.listen(PORT, BIND_ADDRESS, () => {
+const httpServer = app.listen(PORT, BIND_ADDRESS, () => {
         console.log(`MovieBox API Server running on http://${BIND_ADDRESS}:${PORT}`);
         const stopSitemapScheduler = sitemapBuilder.startSitemapScheduler({ port: PORT });
-        process.once('SIGTERM', stopSitemapScheduler);
-        process.once('SIGINT', stopSitemapScheduler);
+        let shuttingDown = false;
+        const shutdown = (signal) => {
+            if (shuttingDown) return;
+            shuttingDown = true;
+            console.log(`[shutdown] ${signal} received; stopping sitemap scheduler and closing HTTP server`);
+            stopSitemapScheduler();
+            const forceClose = setTimeout(() => {
+                console.warn('[shutdown] Closing remaining HTTP connections after grace period');
+                if (typeof httpServer.closeAllConnections === 'function') httpServer.closeAllConnections();
+            }, 10000);
+            forceClose.unref();
+            httpServer.close((error) => {
+                clearTimeout(forceClose);
+                if (error) {
+                    console.error('[shutdown] HTTP server close failed:', error.message);
+                    process.exitCode = 1;
+                }
+                console.log('[shutdown] HTTP server closed; exiting process');
+                process.exit(process.exitCode || 0);
+            });
+        };
+        process.once('SIGTERM', () => shutdown('SIGTERM'));
+        process.once('SIGINT', () => shutdown('SIGINT'));
 
     // -- Pre-warm caches on startup --
     const _http = require('http');
