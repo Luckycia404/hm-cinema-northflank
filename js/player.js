@@ -413,40 +413,77 @@ videoPlayer.addEventListener('timeupdate', function() {
         }
     });
 
-    // Picture-in-Picture
-    pipBtn.addEventListener('click', function() {
-        if (document.pictureInPictureElement) {
-            document.exitPictureInPicture().catch(error => {
-                console.log('PiP error:', error);
-            });
-        } else if (document.pictureInPictureEnabled) {
-            videoPlayer.requestPictureInPicture().catch(error => {
-                console.log('PiP error:', error);
-            });
+    // Picture-in-Picture. Android/Chromium uses the standard API; Safari uses
+    // its WebKit presentation-mode API. The OS/browser chooses the PiP corner.
+    const supportsStandardPiP = () => Boolean(
+        document.pictureInPictureEnabled &&
+        typeof videoPlayer.requestPictureInPicture === 'function'
+    );
+    const supportsWebKitPiP = () => Boolean(
+        typeof videoPlayer.webkitSupportsPresentationMode === 'function' &&
+        videoPlayer.webkitSupportsPresentationMode('picture-in-picture')
+    );
+    const syncPiPButton = () => {
+        const active = document.pictureInPictureElement === videoPlayer ||
+            videoPlayer.webkitPresentationMode === 'picture-in-picture';
+        pipBtn.classList.toggle('active', active);
+        pipBtn.disabled = !(supportsStandardPiP() || supportsWebKitPiP());
+        pipBtn.title = pipBtn.disabled
+            ? 'Picture-in-Picture is not supported by this browser'
+            : (active ? 'Exit Picture-in-Picture' : 'Picture-in-Picture');
+        isPiPActive = active;
+    };
+    pipBtn.addEventListener('click', async function() {
+        try {
+            if (document.pictureInPictureElement === videoPlayer) {
+                await document.exitPictureInPicture();
+            } else if (videoPlayer.webkitPresentationMode === 'picture-in-picture' &&
+                       typeof videoPlayer.webkitSetPresentationMode === 'function') {
+                videoPlayer.webkitSetPresentationMode('inline');
+            } else if (supportsStandardPiP()) {
+                await videoPlayer.requestPictureInPicture();
+            } else if (supportsWebKitPiP()) {
+                videoPlayer.webkitSetPresentationMode('picture-in-picture');
+            } else {
+                syncPiPButton();
+            }
+        } catch (error) {
+            console.warn('Picture-in-Picture could not be started:', error && error.message ? error.message : error);
+            pipBtn.title = 'Picture-in-Picture could not start. Try playing the video first.';
         }
     });
-
-    videoPlayer.addEventListener('enterpictureinpicture', function() {
-        pipBtn.classList.add('active');
-        isPiPActive = true;
-    });
-
-    videoPlayer.addEventListener('leavepictureinpicture', function() {
-        pipBtn.classList.remove('active');
-        isPiPActive = false;
-    });
+    videoPlayer.addEventListener('enterpictureinpicture', syncPiPButton);
+    videoPlayer.addEventListener('leavepictureinpicture', syncPiPButton);
+    videoPlayer.addEventListener('webkitpresentationmodechanged', syncPiPButton);
+    syncPiPButton();
 
     const speedBtn = document.getElementById('speedBtn');
     const speedDropdown = document.getElementById('speedDropdown');
+    const useCenteredMobileSpeedMenu = window.matchMedia('(max-width: 768px)').matches;
+    if (useCenteredMobileSpeedMenu) {
+        // Detach from the controls so parent overflow/positioning cannot clip it.
+        // When fullscreen is active, keep it inside the fullscreen subtree.
+        const placeSpeedDropdown = () => {
+            const fullscreenRoot = document.fullscreenElement ||
+                document.webkitFullscreenElement || document.body;
+            fullscreenRoot.appendChild(speedDropdown);
+        };
+        speedDropdown.classList.add('mobile-centered');
+        placeSpeedDropdown();
+        document.addEventListener('fullscreenchange', placeSpeedDropdown);
+        document.addEventListener('webkitfullscreenchange', placeSpeedDropdown);
+    }
+    const closeSpeedDropdown = () => speedDropdown.classList.remove('show');
     speedBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         speedDropdown.classList.toggle('show');
         const otherDropdowns = document.querySelectorAll('.subtitle-dropdown.show');
         otherDropdowns.forEach(d => d.classList.remove('show'));
     });
+    speedDropdown.addEventListener('click', e => e.stopPropagation());
     document.addEventListener('click', function(e) {
-        if (!e.target.closest('.speed-selector-container')) {
-            speedDropdown.classList.remove('show');
+        if (!speedDropdown.contains(e.target) && !speedBtn.contains(e.target)) {
+            closeSpeedDropdown();
         }
     });
 

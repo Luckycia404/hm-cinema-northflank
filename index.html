@@ -65,7 +65,7 @@
     </script>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">   
-<link rel="stylesheet" href="/style.css?v=18">
+<link rel="stylesheet" href="/style.css?v=19">
 <style>
 .skeleton-card{background:#1e1e1e;border-radius:10px;overflow:hidden;min-height:200px}
 .skeleton-poster{width:100%;aspect-ratio:2/3;background:linear-gradient(90deg,#1a1a1a 25%,#2d2d2d 50%,#1a1a1a 75%);background-size:200% 100%;animation:skeletonShimmer 1.5s ease-in-out infinite}
@@ -525,7 +525,7 @@
             <!-- Professional Video Player -->
             <div class="video-container" id="videoContainer">
                 <div class="video-wrapper">
-                    <video class="video-player" id="videoPlayer">
+                    <video class="video-player" id="videoPlayer" playsinline webkit-playsinline>
                         Your browser does not support the video tag.
                     </video>
                     
@@ -1174,7 +1174,7 @@
 <!-- HLS.js for football live stream playback -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
 <script src="https://h5-static.aoneroom.com/spa/videoPlayPage/assets/dash.all.min.09758ca9.js"></script>
-<script src="/js/player.js"></script>
+<script src="/js/player.js?v=2"></script>
 
 <script src="/js/sports.js?v=17"></script>
 

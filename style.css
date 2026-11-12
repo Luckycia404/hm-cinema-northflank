@@ -1086,8 +1086,7 @@
     }
     
     /* Hide less important buttons on mobile */
-    .translation-btn,
-    .pip-btn {
+    .translation-btn {
         display: none;
     }
 }
@@ -2146,6 +2145,26 @@
 
 .speed-dropdown.show {
     display: block;
+}
+
+/* Mobile playback-speed menu: keep the full menu inside the visible viewport. */
+@media (max-width: 768px) {
+    .speed-dropdown.mobile-centered {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        right: auto !important;
+        bottom: auto !important;
+        transform: translate(-50%, -50%) !important;
+        width: min(190px, calc(100vw - 32px));
+        min-width: 0;
+        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        margin: 0;
+        z-index: 100000;
+    }
 }
 
 .speed-option {
