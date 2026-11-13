@@ -2147,26 +2147,30 @@
     display: block;
 }
 
-/* Mobile playback-speed menu: keep the full menu inside the visible viewport. */
+/* Keep the speed menu compact and visually anchored to its own control on mobile. */
 @media (max-width: 768px) {
-    .speed-dropdown.mobile-centered {
-        position: fixed !important;
-        top: 50% !important;
-        left: 50% !important;
-        right: auto !important;
-        bottom: auto !important;
-        transform: translate(-50%, -50%) !important;
-        width: min(190px, calc(100vw - 32px));
-        min-width: 0;
-        max-height: calc(100vh - 32px);
-        max-height: calc(100dvh - 32px);
+    .speed-dropdown {
+        width: 104px;
+        min-width: 104px;
+        padding: 4px;
+        border-radius: 7px;
+        margin: 0;
+        max-height: min(60vh, 360px);
         overflow-y: auto;
         overscroll-behavior: contain;
-        margin: 0;
         z-index: 100000;
     }
+    .speed-dropdown .speed-option {
+        padding: 5px 6px;
+        font-size: 0.76rem;
+        line-height: 1.2;
+        border-radius: 4px;
+        white-space: nowrap;
+    }
+    .speed-dropdown .speed-option span {
+        font-size: 0.62rem !important;
+    }
 }
-
 .speed-option {
     padding: 7px 12px;
     border-radius: 6px;
@@ -5329,4 +5333,317 @@ img, video, iframe, canvas, svg {
 
 .slide-actions > .watch-now {
     border-color: transparent;
+}
+
+
+/* HM Cinema homepage: horizontal category rails + mixed vertical discovery feed */
+#homePage .movies-grid.home-horizontal-rail {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 2px 2px 12px;
+    scrollbar-width: thin;
+}
+#homePage .movies-grid.home-horizontal-rail > .movie-card {
+    flex: 0 0 clamp(112px, 15vw, 178px);
+    min-width: 0;
+    scroll-snap-align: start;
+}
+#homePage #discoverMoreGrid.discover-more-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-auto-flow: row !important;
+    overflow: visible !important;
+    gap: 16px 12px;
+    align-content: start;
+}
+#homePage #discoverMoreGrid.discover-more-grid > .movie-card { min-width: 0; width: 100%; }
+#homePage #discoverMoreGrid .movie-poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; }
+.discover-more-status { min-height: 28px; padding: 12px 0; text-align: center; color: var(--gray); font-size: .85rem; }
+@media (max-width: 768px) {
+    #homePage .movies-grid.home-horizontal-rail > .movie-card { flex-basis: 126px; }
+    #homePage #discoverMoreGrid.discover-more-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 14px 9px; }
+}
+
+
+/* Discover More is a vertical page feed, not a horizontal carousel. */
+#homePage #discoverMoreSection,
+#homePage #discoverMoreSection .container {
+    width: 100%;
+    max-width: 100%;
+    overflow: visible !important;
+}
+#homePage #discoverMoreGrid.discover-vertical-feed {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-auto-flow: row !important;
+    grid-auto-columns: auto !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    overscroll-behavior-x: auto;
+    scroll-snap-type: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 16px 12px;
+}
+#homePage #discoverMoreGrid.discover-vertical-feed > .movie-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: initial !important;
+    scroll-snap-align: none !important;
+}
+@media (max-width: 768px) {
+    #homePage #discoverMoreGrid.discover-vertical-feed {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 14px 9px;
+    }
+}
+
+/* Compact homepage spacing: bring category sections and cards closer together. */
+#homePage > .section {
+    padding-top: 22px;
+    padding-bottom: 22px;
+}
+#homePage > .section .section-header {
+    margin-bottom: 16px;
+    gap: 10px;
+}
+#homePage .movies-grid.home-horizontal-rail {
+    gap: 8px;
+    padding-bottom: 8px;
+}
+#homePage #discoverMoreGrid.discover-vertical-feed {
+    gap: 12px 8px;
+}
+@media (max-width: 768px) {
+    #homePage > .section {
+        padding-top: 16px;
+        padding-bottom: 16px;
+    }
+    #homePage > .section .section-header {
+        margin-bottom: 12px;
+    }
+    #homePage .movies-grid.home-horizontal-rail {
+        gap: 7px;
+    }
+    #homePage #discoverMoreGrid.discover-vertical-feed {
+        gap: 11px 7px;
+    }
+}
+
+/* Strong compact spacing override for all homepage content sections. */
+#homePage > section.section {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+}
+#homePage > section.section .section-header {
+    margin-bottom: 10px !important;
+    gap: 8px !important;
+}
+#homePage .movies-grid.home-horizontal-rail {
+    gap: 5px !important;
+    padding: 0 1px 5px !important;
+}
+#homePage #discoverMoreGrid.discover-vertical-feed {
+    column-gap: 5px !important;
+    row-gap: 8px !important;
+}
+@media (max-width: 768px) {
+    #homePage > section.section {
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+    }
+    #homePage > section.section .section-header {
+        margin-bottom: 8px !important;
+    }
+    #homePage .movies-grid.home-horizontal-rail {
+        gap: 5px !important;
+    }
+    #homePage #discoverMoreGrid.discover-vertical-feed {
+        column-gap: 5px !important;
+        row-gap: 8px !important;
+    }
+}
+
+/* The hero frame belongs to each slide, so the frame travels with its movie. */
+#homePage #heroBanner {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+    isolation: isolate;
+    background: transparent;
+    box-shadow: none;
+    max-width: 100%;
+}
+#homePage #heroBanner .hero-slider {
+    overflow: hidden;
+    max-width: 100%;
+}
+#homePage #heroBanner .slide {
+    left: clamp(10px, 2vw, 24px);
+    width: calc(100% - clamp(20px, 4vw, 48px));
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 24px;
+    overflow: hidden;
+    background-color: #090b10;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255,255,255,0.025);
+}
+#homePage #heroBanner .slider-btn {
+    border: 1px solid rgba(255,255,255,0.24);
+    border-radius: 50%;
+    background: rgba(12, 15, 22, 0.62);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+#homePage #heroBanner .slider-dots {
+    bottom: 16px;
+}
+
+.search-box .search-suggestions,
+.mobile-search-row .search-suggestions {
+    background: rgba(16, 19, 27, 0.98) !important;
+    color: #f4f6fa;
+    border: 1px solid rgba(255,255,255,0.13) !important;
+    border-radius: 16px !important;
+    padding: 8px !important;
+    max-height: min( min(70vh, 440px), 440px);
+    overflow-y: auto;
+    box-shadow: 0 18px 48px rgba(0,0,0,0.48) !important;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+}
+.search-suggestions .suggestion-loading {
+    padding: 11px 12px 9px;
+    color: #aeb8c8;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+.search-suggestions .suggestion-item {
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 10px 12px !important;
+    gap: 12px;
+    color: #edf1f7 !important;
+    border: 0 !important;
+    border-radius: 10px;
+    text-align: left;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 160ms ease, color 160ms ease;
+}
+.search-suggestions .suggestion-item:hover,
+.search-suggestions .suggestion-item:focus-visible {
+    background: rgba(255,255,255,0.085) !important;
+    color: #fff !important;
+    outline: none;
+}
+.search-suggestions .suggestion-item:not(:has(.suggestion-poster))::before {
+    content: '\f002';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    color: #8994a6;
+    font-size: 0.78rem;
+    width: 18px;
+    min-width: 18px;
+    flex: 0 0 18px;
+    line-height: 1;
+    text-align: center;
+}
+.search-suggestions .suggestion-poster {
+    width: 38px;
+    height: 52px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex: 0 0 auto;
+}
+.search-suggestions .suggestion-info { min-width: 0; }
+.search-suggestions .suggestion-title {
+    color: #f5f7fb;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+.search-suggestions .suggestion-meta {
+    color: #9ca8b9;
+    font-size: 0.75rem;
+    margin-top: 3px;
+}
+@media (max-width: 600px) {
+    #homePage #heroBanner .slide {
+        left: 10px;
+        width: calc(100% - 20px);
+        border-radius: 18px;
+    }
+    .search-box .search-suggestions,
+    .mobile-search-row .search-suggestions {
+        border-radius: 14px !important;
+        max-height: 62vh;
+    }
+}
+
+/* The framed hero behaves like a sliding stack of individual movie cards. */
+#homePage #heroBanner .slide {
+    transform: translateX(100%);
+    transition: transform 720ms cubic-bezier(0.22, 0.72, 0.18, 1), opacity 620ms ease;
+    will-change: transform, opacity;
+}
+#homePage #heroBanner .slide.active {
+    transform: translateX(0);
+}
+#homePage #heroBanner .slide.enter-from-right { transform: translateX(100%); opacity: 0; }
+#homePage #heroBanner .slide.enter-from-left { transform: translateX(-100%); opacity: 0; }
+#homePage #heroBanner .slide.exit-to-left { transform: translateX(-100%); opacity: 0; }
+#homePage #heroBanner .slide.exit-to-right { transform: translateX(100%); opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+    #homePage #heroBanner .slide { transition: none !important; }
+}
+
+/* Give the first category extra breathing room below the hero only. */
+#homePage #trending {
+    padding-top: 34px !important;
+}
+@media (max-width: 768px) {
+    #homePage #trending {
+        padding-top: 28px !important;
+    }
+}
+
+
+/* Keep hero action icons and labels fully visible on narrow screens. */
+@media (max-width: 768px) {
+    #homePage #heroBanner .slide-actions > .watch-now,
+    #homePage #heroBanner .slide-actions > .btn-details {
+        flex: 0 1 auto;
+        min-width: 0;
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+        gap: 7px;
+        font-size: 12px !important;
+        letter-spacing: 0.25px;
+        white-space: nowrap;
+    }
+
+    #homePage #heroBanner .slide-actions > .watch-now > i,
+    #homePage #heroBanner .slide-actions > .btn-details > i {
+        flex: 0 0 auto;
+        margin: 0;
+        line-height: 1;
+    }
+
+    #homePage #heroBanner .slide-actions > .watch-now > i {
+        margin-right: 1px;
+    }
 }

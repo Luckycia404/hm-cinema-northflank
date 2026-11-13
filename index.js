@@ -3331,6 +3331,36 @@ app.get('/api/captions/:movieId', async (req, res) => {
 });
 
 
+// Browser-side diagnostics for player controls that are invisible to server logs.
+const playerDebugRate = new Map();
+app.post('/api/player-debug', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
+    const now = Date.now();
+    const last = playerDebugRate.get(ip) || 0;
+    if (now - last < 1000) return res.status(429).json({ status: 'error', message: 'Debug event rate limited.' });
+    const body = req.body || {};
+    const clean = (value, max=160) => String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
+    const allowedEvents = ['pip_error', 'pip_unsupported', 'pip_not_ready', 'pip_entered', 'pip_enter_event', 'pip_leave_event', 'dash_quality_requested', 'dash_quality_rendered'];
+    const event = clean(body.event, 40);
+    if (!allowedEvents.includes(event)) return res.status(400).json({ status: 'error', message: 'Unsupported debug event.' });
+    const details = body.details && typeof body.details === 'object' ? body.details : {};
+    const safeDetails = {};
+    for (const key of ['error','message','action','pipEnabled','pipMethod','webkitPip','readyState','videoSize','paused','disabled','userActivation','sourceKind','mediaError','mediaType','oldQuality','newQuality','selectedQuality','currentTime']) {
+        if (details[key] !== undefined) safeDetails[key] = clean(details[key], 180);
+    }
+    const report = {
+        event,
+        movieId: clean(body.movieId, 100),
+        title: clean(body.title, 120),
+        details: safeDetails,
+        userAgent: clean(body.userAgent, 180)
+    };
+    console.info('[PLAYER DEBUG]', JSON.stringify(report));
+    playerDebugRate.set(ip, now);
+    res.status(202).json({ status: 'accepted' });
+});
+
 // Playback issue reports submitted from the watch player.
 const playerReportRate = new Map();
 app.post('/api/player-report', async (req, res) => {

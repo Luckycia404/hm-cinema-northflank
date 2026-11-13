@@ -866,6 +866,15 @@ addToHistory(movieId, movieTitle, movieThumbnail);
                 safeLoad(loadAdultContent, 'Adult Content'),
                 safeLoad(loadShortTV, 'Short TV'),
             ]);
+            await delay(350);
+            Promise.allSettled([
+                safeLoad(loadActionMovies, 'Action Movies'),
+                safeLoad(loadComedyMovies, 'Comedy Movies'),
+                safeLoad(loadRomanceMovies, 'Romance Movies'),
+                safeLoad(loadSciFiMovies, 'Sci-Fi & Fantasy'),
+            ]);
+            setupDiscoverMoreScroll();
+            safeLoad(() => loadDiscoverMore(false), 'Discover More');
             console.log('[SUCCESS] All homepage sections loading initiated');
         }
 
@@ -921,19 +930,21 @@ addToHistory(movieId, movieTitle, movieThumbnail);
                 }
             }
             
-            // Filter to only 2025-2026 content AFTER getting movies from fallback
+            // New Releases is strictly the current calendar year (2026).
             if (filterByYear && allMovies.length > 0) {
                 const beforeFilter = allMovies.length;
-                allMovies = allMovies.filter(movie => {
-                    let year = movie.year;
-                    if (!year && movie.releaseDate) {
-                        year = new Date(movie.releaseDate).getFullYear();
-                    }
-                    // Convert to number for comparison
-                    const yearNum = parseInt(year);
-                    return yearNum === 2025 || yearNum === 2026;
+                const releaseYear = movie => {
+                    const raw = movie.year || movie.releaseDate || movie.release_date || movie.releaseTime || '';
+                    const match = String(raw).match(/(?:19|20)\d{2}/);
+                    return match ? Number(match[0]) : 0;
+                };
+                allMovies = allMovies.filter(movie => releaseYear(movie) === 2026);
+                allMovies.sort((a, b) => {
+                    const dateA = new Date(a.releaseDate || a.release_date || `${releaseYear(a)}-01-01`).getTime() || 0;
+                    const dateB = new Date(b.releaseDate || b.release_date || `${releaseYear(b)}-01-01`).getTime() || 0;
+                    return dateB - dateA;
                 });
-                console.log(`[FILTER] Filtered ${sectionName} from ${beforeFilter} to ${allMovies.length} movies (2025-2026 only)`);
+                console.log(`[FILTER] Filtered ${sectionName} from ${beforeFilter} to ${allMovies.length} movies (2026 only, newest first)`);
             }
             
             console.log(`[DATA] Final result for ${sectionName}: ${allMovies.length} movies`);
@@ -1027,9 +1038,9 @@ addToHistory(movieId, movieTitle, movieThumbnail);
         async function loadNewReleases() {
     const dailyCatalogPage = getDailyCatalogPage();
     await loadContentWithFallback([
-        `/api/search/2025?page=${dailyCatalogPage}&perPage=24`,
-        `/api/search/2026?page=${dailyCatalogPage}&perPage=24`,
-        '/api/hot?perPage=24'
+        '/api/search/2026?type=1&page=1&perPage=60',
+        '/api/search/2026?type=1&page=2&perPage=60',
+        '/api/trending?page=0&perPage=60'
     ], 'newReleasesGrid', 'new releases', 24, true);
 }
         async function loadAnime() {
@@ -1082,6 +1093,50 @@ addToHistory(movieId, movieTitle, movieThumbnail);
         '/api/search/short%20series?perPage=24'
     ], 'shorttvGrid', 'short tv', 24); 
 }
+        async function loadActionMovies() { await loadContentWithFallback(['/api/search/action?perPage=36'], 'actionGrid', 'action movies', 18); }
+        async function loadComedyMovies() { await loadContentWithFallback(['/api/search/comedy?perPage=36'], 'comedyGrid', 'comedy movies', 18); }
+        async function loadRomanceMovies() { await loadContentWithFallback(['/api/search/romance?perPage=36'], 'romanceGrid', 'romance movies', 18); }
+        async function loadSciFiMovies() { await loadContentWithFallback(['/api/search/sci-fi?perPage=36', '/api/search/fantasy?perPage=36'], 'scifiGrid', 'sci-fi and fantasy', 18); }
+
+        // Mixed, vertically scrolling homepage feed. Deduplicate by provider ID.
+        let discoverMorePage = 0;
+        let discoverMoreLoading = false;
+        let discoverMoreSeen = new Set();
+        let discoverMoreHasMore = true;
+        async function loadDiscoverMore(append = false) {
+            if (discoverMoreLoading || (append && !discoverMoreHasMore)) return;
+            discoverMoreLoading = true;
+            const grid = document.getElementById('discoverMoreGrid');
+            const status = document.getElementById('discoverMoreStatus');
+            if (!append) { discoverMorePage = 0; discoverMoreSeen = new Set(); discoverMoreHasMore = true; grid.innerHTML = ''; }
+            // Exclude titles already visible in the horizontal homepage category rails.
+            document.querySelectorAll('#homePage .home-horizontal-rail .movie-card[data-movie-id]').forEach(card => discoverMoreSeen.add(card.dataset.movieId));
+            status.textContent = 'Loading more titles…';
+            try {
+                const response = await fetchAPI(`/api/trending?page=${discoverMorePage}&perPage=36`);
+                const incoming = extractMoviesFromResponse(response);
+                const unique = incoming.filter(movie => {
+                    const id = String(movie.id || movie.subjectId || movie.title || movie.name || '');
+                    if (!id || discoverMoreSeen.has(id)) return false;
+                    discoverMoreSeen.add(id); return true;
+                });
+                discoverMorePage++;
+                if (incoming.length < 36) discoverMoreHasMore = false;
+                if (unique.length) { displayMovies(unique, 'discoverMoreGrid', true); status.textContent = ''; }
+                else if (!append && !grid.children.length) { status.textContent = 'No additional titles available right now.'; }
+                else { discoverMoreHasMore = false; status.textContent = 'You have reached the end for now.'; }
+            } catch (error) { console.error('[DISCOVER MORE] Load failed:', error); status.textContent = 'Could not load more titles. Scroll down to retry.'; }
+            finally { discoverMoreLoading = false; }
+        }
+        function setupDiscoverMoreScroll() {
+            if (window.__hmDiscoverMoreScrollBound) return;
+            window.__hmDiscoverMoreScrollBound = true;
+            window.addEventListener('scroll', () => {
+                const section = document.getElementById('discoverMoreSection');
+                if (!section || section.hidden || discoverMoreLoading) return;
+                if (section.getBoundingClientRect().bottom - window.innerHeight < 650) loadDiscoverMore(true);
+            }, { passive: true });
+        }
         async function loadBlackShows() {
     await loadContentWithFallback([
         '/api/search/black%20shows?perPage=24',
@@ -1211,8 +1266,22 @@ function displayMovies(movies, gridId, append = false) {
     grid.style.gridAutoFlow = 'row';
     grid.style.gridAutoRows = 'auto';
     
-    // Check if this is homepage or view all page
-    const isHomePage = ['trendingGrid', 'moviesGrid', 'tvGrid', 'newReleasesGrid'].includes(gridId);
+    // Homepage category rows are horizontal rails; the Discover More feed stays a vertical grid.
+    const isDiscoverFeed = gridId === 'discoverMoreGrid';
+    const isHomePage = Boolean(grid.closest('#homePage')) && !isDiscoverFeed;
+    if (isHomePage) grid.classList.add('home-horizontal-rail');
+    else grid.classList.remove('home-horizontal-rail');
+    if (isDiscoverFeed) {
+        // This feed must behave like a normal vertically scrolling page grid, never a sideways carousel.
+        grid.classList.add('discover-vertical-feed');
+        grid.style.setProperty('display', 'grid', 'important');
+        grid.style.setProperty('grid-template-columns', 'repeat(3, minmax(0, 1fr))', 'important');
+        grid.style.setProperty('grid-auto-flow', 'row', 'important');
+        grid.style.setProperty('overflow-x', 'visible', 'important');
+        grid.style.setProperty('overflow-y', 'visible', 'important');
+        grid.style.setProperty('scroll-snap-type', 'none', 'important');
+        grid.style.setProperty('width', '100%', 'important');
+    }
     
     const moviesHTML = movies.map((movie, index) => {
         const movieId = movie.id || movie.subjectId || '';
@@ -1227,7 +1296,7 @@ function displayMovies(movies, gridId, append = false) {
         // Use same card design for both homepage and view all - click to open modal
         const isAboveFold = index < 8;
         return `
-        <div class="movie-card homepage-card" onclick="location.href='/${urlType}/${movieId}'" style="cursor: pointer;">
+        <div class="movie-card homepage-card" data-movie-id="${String(movieId).replace(/"/g, '&quot;')}" onclick="location.href='/${urlType}/${movieId}'" style="cursor: pointer;">
             <div style="position: relative;">
                 <img src="${thumbnail}" 
                      alt="${safeTitle}" 
@@ -1262,6 +1331,15 @@ function displayMovies(movies, gridId, append = false) {
     // FORCE: Aggressive reflow with dense flow to eliminate empty spaces
     grid.style.cssText = 'display: grid !important; grid-auto-flow: dense !important; align-content: start !important;';
     const applyViewAllLayout = () => {
+        if (grid.classList.contains('discover-vertical-feed')) {
+            grid.style.setProperty('display', 'grid', 'important');
+            grid.style.setProperty('grid-template-columns', 'repeat(3, minmax(0, 1fr))', 'important');
+            grid.style.setProperty('grid-auto-flow', 'row', 'important');
+            grid.style.setProperty('overflow-x', 'visible', 'important');
+            grid.style.setProperty('overflow-y', 'visible', 'important');
+            grid.style.setProperty('scroll-snap-type', 'none', 'important');
+            return;
+        }
         if (!grid.classList.contains('view-all-results')) return;
         grid.style.setProperty('display', 'grid', 'important');
         grid.style.setProperty('grid-template-columns', 'repeat(3, minmax(0, 1fr))', 'important');

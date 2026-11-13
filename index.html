@@ -65,7 +65,7 @@
     </script>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">   
-<link rel="stylesheet" href="/style.css?v=19">
+<link rel="stylesheet" href="/style.css?v=28">
 <style>
 .skeleton-card{background:#1e1e1e;border-radius:10px;overflow:hidden;min-height:200px}
 .skeleton-poster{width:100%;aspect-ratio:2/3;background:linear-gradient(90deg,#1a1a1a 25%,#2d2d2d 50%,#1a1a1a 75%);background-size:200% 100%;animation:skeletonShimmer 1.5s ease-in-out infinite}
@@ -428,6 +428,12 @@
             </div>
         </section>
 
+        <!-- More discovery categories -->
+        <section class="section" id="actionMovies"><div class="container"><div class="section-header"><h2 class="section-title">Action Movies</h2><a href="#" class="view-all" onclick="showAllContent('action', 'Action Movies')">View All <i class="fas fa-chevron-right"></i></a></div><div class="movies-grid" id="actionGrid"></div></div></section>
+        <section class="section" id="comedyMovies"><div class="container"><div class="section-header"><h2 class="section-title">Comedy Movies</h2><a href="#" class="view-all" onclick="showAllContent('comedy', 'Comedy Movies')">View All <i class="fas fa-chevron-right"></i></a></div><div class="movies-grid" id="comedyGrid"></div></div></section>
+        <section class="section" id="romanceMovies"><div class="container"><div class="section-header"><h2 class="section-title">Romance Movies</h2><a href="#" class="view-all" onclick="showAllContent('romance', 'Romance Movies')">View All <i class="fas fa-chevron-right"></i></a></div><div class="movies-grid" id="romanceGrid"></div></div></section>
+        <section class="section" id="scifiMovies"><div class="container"><div class="section-header"><h2 class="section-title">Sci-Fi &amp; Fantasy</h2><a href="#" class="view-all" onclick="showAllContent('scifi', 'Sci-Fi & Fantasy')">View All <i class="fas fa-chevron-right"></i></a></div><div class="movies-grid" id="scifiGrid"></div></div></section>
+
         <!-- Hot Short TV -->
         <section class="section" id="shorttv">
             <div class="container">
@@ -443,6 +449,9 @@
                 </div>
             </div>
         </section>
+
+        <!-- Mixed vertical discovery feed -->
+        <section class="section" id="discoverMoreSection"><div class="container"><div class="section-header"><h2 class="section-title">Discover More Movies &amp; Series</h2><span class="section-subtitle">A mix of movies and shows picked for you</span></div><div class="movies-grid discover-more-grid discover-vertical-feed" id="discoverMoreGrid"></div><div id="discoverMoreStatus" class="discover-more-status" aria-live="polite"></div></div></section>
 
     </div>
 
@@ -1168,8 +1177,8 @@
     document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer();});
     </script>
 
-<script src="/js/main.js?v=8"></script>
-<script src="/js/slider.js?v=3"></script>
+<script src="/js/main.js?v=10"></script>
+<script src="/js/slider.js?v=5"></script>
 
 <!-- HLS.js for football live stream playback -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>

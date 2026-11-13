@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icon.png">
     <meta name="theme-color" content="#000000">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/style.css?v=16">
+    <link rel="stylesheet" href="/style.css?v=22">
     <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#000;min-height:100vh;font-family:inherit;color:#fff}
@@ -233,7 +233,7 @@
     <div class="watch-player-wrap">
         <div class="video-container" id="videoContainer">
             <div class="video-wrapper">
-                <video class="video-player" id="videoPlayer" playsinline></video>
+                <video class="video-player" id="videoPlayer" playsinline webkit-playsinline></video>
 
                 <!-- Seek timer toast -->
                 <div class="seek-toast" id="seekToast">0:00 / 0:00</div>
@@ -731,6 +731,34 @@ function loadStream(src, options = {}) {
             activeDashQuality = -1;
             updateDashQualityUI();
         });
+        dashPlayer.on(window.dashjs.MediaPlayer.events.QUALITY_CHANGE_REQUESTED, function(event) {
+            console.info('[DASH] Quality change requested', event);
+            sendPlayerDebug('dash_quality_requested', {
+                mediaType: event && event.mediaType || 'video',
+                oldQuality: event && event.oldQuality,
+                newQuality: event && event.newQuality,
+                selectedQuality: activeDashQuality,
+                currentTime: Math.floor(video.currentTime || 0)
+            });
+        });
+        dashPlayer.on(window.dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, function(event) {
+            const renderedIndex = Number(event && event.newQuality);
+            const renderedOption = dashQualityOptions.find(option => option.qualityIndex === renderedIndex);
+            console.info('[DASH] Quality change rendered', event);
+            if (Number.isInteger(renderedIndex) && activeDashQuality >= 0) {
+                activeDashQuality = renderedIndex;
+                updateDashQualityUI();
+            }
+            const renderedLabel = renderedOption ? renderedOption.label : (renderedIndex >= 0 ? 'Video quality' : 'Auto');
+            showQuickMsg(renderedLabel + ' applied', 'success');
+            sendPlayerDebug('dash_quality_rendered', {
+                mediaType: event && event.mediaType || 'video',
+                oldQuality: event && event.oldQuality,
+                newQuality: event && event.newQuality,
+                selectedQuality: activeDashQuality,
+                currentTime: Math.floor(video.currentTime || 0)
+            });
+        });
         dashPlayer.on(window.dashjs.MediaPlayer.events.ERROR, function(event) {
             console.error('[DASH] playback error', event);
             if (event && event.error && event.error.fatal) scheduleDashRetry(src, url);
@@ -857,8 +885,8 @@ video.addEventListener('timeupdate', ()=>{
     // Save every 5s
     if (!video._lastSave || Date.now()-video._lastSave>5000) { video._lastSave=Date.now(); savePosition(); }
 });
-video.addEventListener('enterpictureinpicture', ()=>{ isPiPActive=true; document.getElementById('pipBtn').classList.add('active'); });
-video.addEventListener('leavepictureinpicture',  ()=>{ isPiPActive=false; document.getElementById('pipBtn').classList.remove('active'); });
+video.addEventListener('enterpictureinpicture', ()=>{ isPiPActive=true; document.getElementById('pipBtn').classList.add('active'); sendPlayerDebug('pip_enter_event', { videoSize: video.videoWidth + 'x' + video.videoHeight, readyState: video.readyState }); });
+video.addEventListener('leavepictureinpicture',  ()=>{ isPiPActive=false; document.getElementById('pipBtn').classList.remove('active'); sendPlayerDebug('pip_leave_event', {}); });
 
 // ── Controls visibility ─────────────────────────────────────────────────────
 let _ctrlTimer = null;
@@ -1104,10 +1132,72 @@ function cycleZoom() {
     }
 }
 
+// Send browser-only player diagnostics to the VPS so they can be inspected
+// in journalctl; normal server logs cannot see JavaScript errors in the viewer.
+function sendPlayerDebug(eventName, details) {
+    try {
+        fetch('/api/player-debug', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,
+            body: JSON.stringify({
+                event: eventName,
+                movieId: String(currentMovieId || ''),
+                title: String(window._watchTitle || ''),
+                details: details || {},
+                userAgent: navigator.userAgent
+            })
+        }).catch(error => console.warn('[PLAYER DEBUG] Could not send diagnostics', error));
+    } catch (error) {
+        console.warn('[PLAYER DEBUG] Diagnostics unavailable', error);
+    }
+}
+
 // ── PiP ──────────────────────────────────────────────────────────────────────
 function togglePip() {
-    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(()=>{});
-    else if (document.pictureInPictureEnabled) video.requestPictureInPicture().catch(()=>{});
+    // Match the original working player: invoke the browser PiP API directly
+    // from this click handler, without awaiting playback or preflight checks.
+    if (document.pictureInPictureElement === video) {
+        document.exitPictureInPicture().catch(error => {
+            console.warn('[PiP] Exit failed:', error);
+            sendPlayerDebug('pip_error', { error: error.name, message: error.message, action: 'exit' });
+            showQuickMsg('Could not close Picture-in-Picture: ' + (error.name || 'Error'), 'error');
+        });
+        return;
+    }
+
+    const diagnostics = {
+        pipEnabled: ('pictureInPictureEnabled' in document) ? document.pictureInPictureEnabled : 'property-missing',
+        pipMethod: typeof video.requestPictureInPicture,
+        readyState: video.readyState,
+        videoSize: video.videoWidth + 'x' + video.videoHeight,
+        paused: video.paused,
+        disabled: Boolean(video.disablePictureInPicture),
+        sourceKind: String(((video._hmPlaybackSource || {}).format || '').toUpperCase() || ((video.currentSrc || '').startsWith('blob:') ? 'MSE' : 'direct'))
+    };
+
+    if (document.pictureInPictureEnabled && typeof video.requestPictureInPicture === 'function') {
+        // Keep requestPictureInPicture() synchronous with the user's gesture.
+        video.requestPictureInPicture().then(() => {
+            console.info('[PiP] Entered Picture-in-Picture');
+            sendPlayerDebug('pip_entered', diagnostics);
+        }).catch(error => {
+            console.warn('[PiP] Request failed:', error);
+            sendPlayerDebug('pip_error', {
+                ...diagnostics,
+                error: error && error.name || 'UnknownError',
+                message: error && error.message || '',
+                action: 'enter'
+            });
+            showQuickMsg('PiP failed: ' + (error && error.name || 'UnknownError'), 'error');
+        });
+        return;
+    }
+
+    console.warn('[PiP] Browser reports Picture-in-Picture unavailable', diagnostics);
+    sendPlayerDebug('pip_unsupported', diagnostics);
+    showQuickMsg('Picture-in-Picture is unavailable in this browser', 'error');
 }
 
 // ── Speed ────────────────────────────────────────────────────────────────────
@@ -1120,10 +1210,14 @@ function setPlaybackSpeed(v) {
 }
 function toggleSpeedDropdown(e) {
     e.stopPropagation();
-    const wasOpen=document.getElementById('speedDropdown').style.display==='block';
-    closeAllPlayerPopups();
     const dd=document.getElementById('speedDropdown');
-    dd.style.display=wasOpen?'none':'block';
+    const btn=document.getElementById('speedBtn');
+    const wasOpen=dd.style.display==='block';
+    closeAllPlayerPopups();
+    if (!wasOpen) {
+        dd.style.display='block';
+        requestAnimationFrame(()=>positionPlayerPopup(dd,btn,true,4));
+    }
 }
 
 // ── Subtitle ─────────────────────────────────────────────────────────────────
@@ -1333,7 +1427,7 @@ function renderQualityItem(list, label, active, onClick) {
     list.appendChild(item);
 }
 
-function positionPlayerPopup(popup, anchor, preferAbove) {
+function positionPlayerPopup(popup, anchor, preferAbove, customGap) {
     if (!popup || !anchor || popup.style.display==='none') return;
     popup.style.position='fixed';
     popup.style.left='auto';
@@ -1342,7 +1436,7 @@ function positionPlayerPopup(popup, anchor, preferAbove) {
     popup.style.transform='none';
     const rect=anchor.getBoundingClientRect();
     const pad=8;
-    const gap=8;
+    const gap=Number.isFinite(customGap) ? customGap : 8;
     const width=popup.offsetWidth||180;
     const height=popup.offsetHeight||160;
     const maxLeft=Math.max(pad,window.innerWidth-width-pad);
@@ -1377,17 +1471,21 @@ function updateDashQualityUI() {
     const representations = dashPlayer.getBitrateInfoListFor('video') || [];
     const seen = new Set();
     dashQualityOptions = representations
-        .slice()
-        .sort((a,b) => (Number(b.height)||0) - (Number(a.height)||0) || (Number(b.bitrate)||0) - (Number(a.bitrate)||0))
-        .map((info, position) => {
+        .map((info, sourceIndex) => ({ info, sourceIndex }))
+        .sort((a,b) => (Number(b.info.height)||0) - (Number(a.info.height)||0) || (Number(b.info.bitrate)||0) - (Number(a.info.bitrate)||0))
+        .map(({ info, sourceIndex }, position) => {
             const height = Number(info.height) || 0;
             const bitrate = Number(info.bitrate) || 0;
             const label = height ? height + 'p' : (bitrate ? Math.round(bitrate / 1000) + ' kbps' : 'Track ' + (position + 1));
             const key = height ? 'height:' + height : 'bitrate:' + bitrate;
             if (seen.has(key)) return null;
             seen.add(key);
+            const reportedIndex = Number(info.qualityIndex);
             return {
-                qualityIndex: Number.isFinite(Number(info.qualityIndex)) ? Number(info.qualityIndex) : position,
+                // dash.js quality indexes refer to the original bitrate list,
+                // not the display-sorted list. Preserve that index when sorting.
+                qualityIndex: info.qualityIndex !== undefined && Number.isInteger(reportedIndex)
+                    ? reportedIndex : sourceIndex,
                 label
             };
         })
@@ -1470,15 +1568,21 @@ function switchDashQuality(qualityIndex) {
     if (!dashPlayer) return;
     const index = Number(qualityIndex);
     try {
-        if (index < 0) {
-            dashPlayer.setAutoSwitchQualityFor('video', true);
-            activeDashQuality = -1;
-        } else {
-            dashPlayer.setAutoSwitchQualityFor('video', false);
-            dashPlayer.setQualityFor('video', index);
-            activeDashQuality = index;
-        }
+        // dash.js 4.7.4 does not expose setAutoSwitchQualityFor(). Its
+        // supported API is updateSettings() with streaming.abr.autoSwitchBitrate.
+        dashPlayer.updateSettings({
+            streaming: {
+                abr: {
+                    autoSwitchBitrate: { video: index < 0 }
+                }
+            }
+        });
+        if (index >= 0) dashPlayer.setQualityFor('video', index, true);
+        activeDashQuality = index < 0 ? -1 : index;
         updateDashQualityUI();
+        const requestedOption = dashQualityOptions.find(option => option.qualityIndex === index);
+        const requestedLabel = index < 0 ? 'Auto' : (requestedOption ? requestedOption.label : 'Selected quality');
+        showQuickMsg(index < 0 ? 'Automatic quality enabled' : 'Switching to ' + requestedLabel + '…', 'info');
         closeAllPlayerPopups();
     } catch (error) {
         console.warn('[DASH] Quality switch failed:', error);

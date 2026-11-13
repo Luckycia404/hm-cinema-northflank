@@ -98,32 +98,54 @@
         if (sliderInterval) clearInterval(sliderInterval);
     }
 
+    function transitionToSlide(index, direction) {
+        const slides = document.querySelectorAll('#heroSlider .slide');
+        const dots = document.querySelectorAll('#sliderDots .dot');
+        if (!slides.length || index === currentSlide || !slides[index]) return;
+
+        const outgoing = slides[currentSlide];
+        const incoming = slides[index];
+        const enterClass = direction >= 0 ? 'enter-from-right' : 'enter-from-left';
+        const exitClass = direction >= 0 ? 'exit-to-left' : 'exit-to-right';
+
+        slides.forEach(slide => {
+            slide.classList.remove('enter-from-right', 'enter-from-left', 'exit-to-left', 'exit-to-right');
+            slide.style.zIndex = '';
+        });
+        incoming.classList.add(enterClass);
+        incoming.style.zIndex = '3';
+        outgoing.style.zIndex = '2';
+        void incoming.offsetWidth;
+
+        outgoing.classList.remove('active');
+        outgoing.classList.add(exitClass);
+        incoming.classList.remove(enterClass);
+        incoming.classList.add('active');
+
+        if (dots[currentSlide]) dots[currentSlide].classList.remove('active');
+        currentSlide = index;
+        if (dots[currentSlide]) dots[currentSlide].classList.add('active');
+
+        window.setTimeout(() => {
+            outgoing.classList.remove(exitClass);
+            outgoing.style.zIndex = '';
+            incoming.style.zIndex = '';
+        }, 780);
+    }
+
     function moveSlider(direction) {
-        const slides = document.querySelectorAll('.slide');
-        const dots = document.querySelectorAll('.dot');
+        const slides = document.querySelectorAll('#heroSlider .slide');
         if (!slides.length) return;
-        
-        slides[currentSlide].classList.remove('active');
-        dots[currentSlide].classList.remove('active');
-        
-        currentSlide = (currentSlide + direction + slides.length) % slides.length;
-        
-        slides[currentSlide].classList.add('active');
-        dots[currentSlide].classList.add('active');
+        const nextIndex = (currentSlide + direction + slides.length) % slides.length;
+        transitionToSlide(nextIndex, direction);
         startSliderTimer();
     }
 
     function goToSlide(index) {
-        const slides = document.querySelectorAll('.slide');
-        const dots = document.querySelectorAll('.dot');
-        
-        slides[currentSlide].classList.remove('active');
-        dots[currentSlide].classList.remove('active');
-        
-        currentSlide = index;
-        
-        slides[currentSlide].classList.add('active');
-        dots[currentSlide].classList.add('active');
+        const slides = document.querySelectorAll('#heroSlider .slide');
+        if (!slides.length || index < 0 || index >= slides.length || index === currentSlide) return;
+        const direction = index > currentSlide ? 1 : -1;
+        transitionToSlide(index, direction);
         startSliderTimer();
     }
 
