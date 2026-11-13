@@ -22,14 +22,18 @@ const DEFAULT_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_INITIAL_DELAY_MS = 10 * 1000;
 const DEFAULT_VALIDATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_VALIDATION_BATCH_SIZE = 300;
-const VALIDATION_STATE_FILE = path.join(APP_DIR, 'sitemap-validation-state.json');
+const DEFAULT_AUDIT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_AUDIT_INITIAL_DELAY_MS = 24 * 60 * 60 * 1000;
+const DATA_DIR = path.resolve(APP_DIR, process.env.SITEMAP_DATA_DIR || '.');
+const VALIDATION_STATE_FILE = path.join(DATA_DIR, 'sitemap-validation-state.json');
+const AUDIT_PROGRESS_FILE = path.join(DATA_DIR, 'sitemap-audit-progress.json');
 const MAX_TIMER_MS = 2_147_483_647;
 
 const HTML_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escAttr = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => HTML_ESC[c]);
 
 function getSitemapOutputPath() {
-    const configuredDir = process.env.SITEMAP_OUTPUT_DIR;
+    const configuredDir = process.env.SITEMAP_OUTPUT_DIR || process.env.SITEMAP_DATA_DIR;
     const outputDir = configuredDir ? path.resolve(APP_DIR, configuredDir) : APP_DIR;
     return path.join(outputDir, 'sitemap-full.xml');
 }
@@ -66,73 +70,81 @@ function startSitemapScheduler({ port }) {
         ? process.env.NODE_ENV === 'production'
         : String(configuredEnabled).toLowerCase() === 'true';
     if (!enabled) {
-        console.info('[sitemap] Automatic refresh is disabled');
+        console.info('[sitemap] Automatic schedules are disabled');
         return () => {};
     }
 
-    const intervalMs = positiveInteger(
-        process.env.SITEMAP_REFRESH_INTERVAL_MS,
-        DEFAULT_REFRESH_INTERVAL_MS
-    );
-    const initialDelayMs = positiveInteger(
-        process.env.SITEMAP_INITIAL_DELAY_MS,
-        DEFAULT_INITIAL_DELAY_MS
-    );
-
-    let timer = null;
-    let child = null;
+    const refreshIntervalMs = positiveInteger(process.env.SITEMAP_REFRESH_INTERVAL_MS, DEFAULT_REFRESH_INTERVAL_MS);
+    const refreshInitialDelayMs = positiveInteger(process.env.SITEMAP_INITIAL_DELAY_MS, DEFAULT_INITIAL_DELAY_MS);
+    const auditIntervalMs = positiveInteger(process.env.SITEMAP_AUDIT_INTERVAL_MS, DEFAULT_AUDIT_INTERVAL_MS);
+    const auditInitialDelayMs = positiveInteger(process.env.SITEMAP_AUDIT_INITIAL_DELAY_MS, DEFAULT_AUDIT_INITIAL_DELAY_MS);
+    let refreshTimer = null;
+    let auditTimer = null;
+    let refreshChild = null;
+    let auditChild = null;
+    let activeJob = null;
     let stopped = false;
 
-    const scheduleNext = () => {
-        if (stopped) return;
-        timer = setTimeout(run, intervalMs);
-    };
-
-    const run = () => {
-        if (stopped || child) return;
-
-        console.info('[sitemap] Starting scheduled refresh');
-        try {
-            child = spawn(process.execPath, [__filename], {
-                cwd: APP_DIR,
-                env: {
-                    ...process.env,
-                    PORT: String(port),
-                },
-                stdio: 'inherit',
-            });
-        } catch (error) {
-            console.error('[sitemap] Could not launch refresh:', error.message);
-            scheduleNext();
+    const launch = (kind) => {
+        const isAudit = kind === 'audit';
+        const current = isAudit ? auditChild : refreshChild;
+        if (stopped || current || activeJob) {
+            if (activeJob) console.info(`[${isAudit ? 'sitemap-audit' : 'sitemap'}] Another sitemap job is active; this run will be skipped`);
             return;
         }
-
-        child.once('error', (error) => {
-            console.error('[sitemap] Could not start refresh:', error.message);
-        });
-
+        console.info(isAudit ? '[sitemap-audit] Starting scheduled rolling audit' : '[sitemap] Starting scheduled discovery refresh');
+        let child;
+        try {
+            child = spawn(process.execPath, [__filename, ...(isAudit ? ['--audit'] : [])], {
+                cwd: APP_DIR,
+                env: { ...process.env, PORT: String(port) },
+                stdio: 'inherit',
+            });
+            if (isAudit) auditChild = child;
+            else refreshChild = child;
+            activeJob = kind;
+        } catch (error) {
+            console.error(`[${isAudit ? 'sitemap-audit' : 'sitemap'}] Could not launch job:`, error.message);
+            return;
+        }
+        child.once('error', error => console.error(`[${isAudit ? 'sitemap-audit' : 'sitemap'}] Job launch error:`, error.message));
         child.once('close', (code, signal) => {
-            child = null;
-            if (code === 0) {
-                console.info('[sitemap] Scheduled refresh completed');
-            } else {
-                console.error(
-                    `[sitemap] Scheduled refresh exited with code ${code ?? 'unknown'}${signal ? ` (signal ${signal})` : ''}`
-                );
-            }
-            scheduleNext();
+            if (isAudit) auditChild = null;
+            else refreshChild = null;
+            activeJob = null;
+            const label = isAudit ? 'sitemap-audit' : 'sitemap';
+            console[code === 0 ? 'info' : 'error'](`[${label}] ${code === 0 ? 'Job completed' : `Job exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}`}`);
         });
     };
 
-    timer = setTimeout(run, initialDelayMs);
-    console.info(
-        `[sitemap] Automatic refresh enabled; first run in ${Math.ceil(initialDelayMs / 1000)}s, then every ${Math.round(intervalMs / 60000)}m`
-    );
+    const scheduleRefresh = delay => {
+        if (stopped) return;
+        refreshTimer = setTimeout(() => {
+            launch('refresh');
+            scheduleRefresh(refreshIntervalMs);
+        }, delay);
+        refreshTimer.unref?.();
+    };
+    const scheduleAudit = delay => {
+        if (stopped) return;
+        auditTimer = setTimeout(() => {
+            launch('audit');
+            scheduleAudit(auditIntervalMs);
+        }, delay);
+        auditTimer.unref?.();
+    };
+
+    scheduleRefresh(refreshInitialDelayMs);
+    scheduleAudit(auditInitialDelayMs);
+    console.info(`[sitemap] Daily discovery enabled; first run in ${Math.ceil(refreshInitialDelayMs / 1000)}s, then every ${Math.round(refreshIntervalMs / 3600000)}h`);
+    console.info(`[sitemap-audit] Rolling audit enabled; first run in ${Math.ceil(auditInitialDelayMs / 3600000)}h, then every ${Math.round(auditIntervalMs / 3600000)}h`);
 
     return () => {
         stopped = true;
-        if (timer) clearTimeout(timer);
-        if (child && !child.killed) child.kill('SIGTERM');
+        if (refreshTimer) clearTimeout(refreshTimer);
+        if (auditTimer) clearTimeout(auditTimer);
+        if (refreshChild && !refreshChild.killed) refreshChild.kill('SIGTERM');
+        if (auditChild && !auditChild.killed) auditChild.kill('SIGTERM');
     };
 }
 
@@ -263,6 +275,7 @@ function readValidationState() {
 }
 
 function writeValidationState(state) {
+    fs.mkdirSync(path.dirname(VALIDATION_STATE_FILE), { recursive: true });
     const tempFile = VALIDATION_STATE_FILE + '.tmp';
     fs.writeFileSync(tempFile, JSON.stringify(state), 'utf8');
     fs.renameSync(tempFile, VALIDATION_STATE_FILE);
@@ -273,7 +286,7 @@ function selectValidationWork({ candidates, due, previouslyKnown, state, now, ba
     const retryDue = due.filter(item => previouslyKnown.has(item.loc) && state[item.loc]?.valid === null);
     const regularDue = due.filter(item => previouslyKnown.has(item.loc) && state[item.loc]?.valid !== null);
     const priorityDue = [...newDue, ...retryDue];
-    const priorityWork = priorityDue.slice(0, batchSize);
+    const priorityWork = priorityDue;
     const regularCapacity = Math.max(0, batchSize - priorityWork.length);
     if (!regularCapacity || !regularDue.length) return priorityWork;
 
@@ -360,6 +373,97 @@ async function validateContentUrls(urls, previouslyKnown) {
     for (const item of filtered) delete item._keep;
     console.log(`[sitemap] URL validation: ${valid} valid, ${removed} excluded, ${temporary} temporarily unverified, ${deferred} deferred to next batch (checked ${work.length} of ${candidates.length}; ${due.length} due)`);
     return filtered;
+}
+
+
+function readAuditProgress() {
+    try {
+        const value = JSON.parse(fs.readFileSync(AUDIT_PROGRESS_FILE, 'utf8'));
+        return value && typeof value === 'object' ? value : {};
+    } catch (_) { return {}; }
+}
+
+function writeAuditProgress(value) {
+    fs.mkdirSync(path.dirname(AUDIT_PROGRESS_FILE), { recursive: true });
+    const temp = AUDIT_PROGRESS_FILE + '.tmp';
+    fs.writeFileSync(temp, JSON.stringify(value, null, 2));
+    fs.renameSync(temp, AUDIT_PROGRESS_FILE);
+}
+
+async function auditExistingSitemap() {
+    if (!fs.existsSync(OUT_FILE)) throw new Error(`Existing sitemap not found: ${OUT_FILE}`);
+    const xml = fs.readFileSync(OUT_FILE, 'utf8');
+    const entries = [...xml.matchAll(/<url>\s*[\s\S]*?<\/url>/g)].map(match => match[0]);
+    if (!entries.length) throw new Error('Existing sitemap contains no URL entries; refusing to overwrite it');
+    const entryByLoc = new Map();
+    for (const entry of entries) {
+        const match = entry.match(/<loc>([^<]+)<\/loc>/);
+        if (match) entryByLoc.set(match[1].trim(), entry);
+    }
+
+    const progress = readAuditProgress();
+    let pending = Array.isArray(progress.pending)
+        ? progress.pending.filter(loc => entryByLoc.has(loc))
+        : [];
+    if (!pending.length) pending = [...entryByLoc.keys()];
+    const days = Math.max(1, Math.floor(Number(process.env.SITEMAP_AUDIT_CYCLE_DAYS) || 3));
+    const batchSize = Math.max(1, Math.ceil(pending.length / days));
+    const selected = pending.slice(0, batchSize);
+    const now = Date.now();
+    const state = readValidationState();
+    const invalid = new Set();
+    const retryTemporary = new Set();
+    let valid = 0, removed = 0, temporary = 0;
+
+    console.log(`[sitemap-audit] Auditing ${selected.length}/${entryByLoc.size} URLs; ${pending.length - selected.length} remain after this batch`);
+    for (let n = 0; n < selected.length; n++) {
+        const loc = selected[n];
+        let result;
+        try { result = await validateSitemapUrl(loc); }
+        catch (error) { result = { valid: null, reason: error.message }; }
+        if (result.valid === true) {
+            state[loc] = { valid: true, checkedAt: now };
+            valid++;
+        } else if (result.valid === false) {
+            state[loc] = { valid: false, checkedAt: now, reason: result.reason };
+            invalid.add(loc);
+            removed++;
+            console.warn(`[sitemap-audit] Removing confirmed invalid URL ${loc}: ${result.reason}`);
+        } else {
+            state[loc] = { valid: null, checkedAt: now, reason: result.reason };
+            retryTemporary.add(loc);
+            temporary++;
+            console.warn(`[sitemap-audit] Temporary failure; retaining for next cycle ${loc}: ${result.reason}`);
+        }
+        if (n < selected.length - 1) await sleep(Number(process.env.SITEMAP_AUDIT_DELAY_MS || 250));
+        if ((n + 1) % 100 === 0) console.log(`[sitemap-audit] Progress ${n + 1}/${selected.length}`);
+    }
+
+    const keptEntries = entries.filter(entry => {
+        const match = entry.match(/<loc>([^<]+)<\/loc>/);
+        return !match || !invalid.has(match[1].trim());
+    });
+    if (keptEntries.length === 0) throw new Error('Audit would remove every URL; refusing to publish an empty sitemap');
+    const nextXml = xml.replace(/<urlset\b[^>]*>[\s\S]*?<\/urlset>/i, match => {
+        const open = match.match(/^<urlset\b[^>]*>/i)[0];
+        return `${open}\n${keptEntries.join('\n')}\n</urlset>`;
+    });
+    const tempFile = OUT_FILE + '.audit.tmp';
+    fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
+    fs.writeFileSync(tempFile, nextXml, 'utf8');
+    fs.renameSync(tempFile, OUT_FILE);
+    writeValidationState(state);
+    const remaining = pending.slice(selected.length).filter(loc => entryByLoc.has(loc) && !invalid.has(loc));
+    for (const loc of retryTemporary) if (entryByLoc.has(loc) && !remaining.includes(loc)) remaining.push(loc);
+    writeAuditProgress({
+        pending: remaining,
+        cycleStartedAt: progress.cycleStartedAt || now,
+        lastRunAt: now,
+        lastBatchSize: selected.length,
+        lastTotal: entryByLoc.size,
+        completedCycle: remaining.length === 0,
+    });
+    console.log(`[sitemap-audit] Complete: ${valid} valid, ${removed} removed, ${temporary} temporarily unavailable; ${keptEntries.length} URLs remain; ${remaining.length} URLs left in this audit cycle`);
 }
 
 function readExistingUrls() {
@@ -521,7 +625,8 @@ async function build() {
 }
 
 if (require.main === module) {
-    build().catch(e => { console.error('[sitemap] Fatal:', e.message); process.exit(1); });
+    const job = process.argv.includes('--audit') ? auditExistingSitemap : build;
+    job().catch(e => { console.error('[sitemap] Fatal:', e.message); process.exit(1); });
 }
 
 module.exports = {
@@ -533,4 +638,5 @@ module.exports = {
     selectValidationWork,
     urlFor,
     getDiscoveryPageNumbers,
+    auditExistingSitemap,
 };
