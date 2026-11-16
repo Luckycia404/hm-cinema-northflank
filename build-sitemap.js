@@ -12,6 +12,13 @@ require('dotenv').config({ path: path.join(APP_DIR, '.env') });
 const PORT = process.env.PORT || 5000;
 const LOCAL_API = `http://127.0.0.1:${PORT}`;
 const CANONICAL_BASE = process.env.CANONICAL_BASE_URL || 'https://hm-cinema.me';
+const SEO_LANDING_PATHS = [
+    '/watch-movies-online', '/latest-movies-online', '/moviebox-alternatives', '/free-tv-series-online',
+    '/action-movies-online', '/comedy-movies-online', '/horror-movies-online', '/thriller-movies-online',
+    '/romance-movies-online', '/drama-movies-online', '/crime-movies-online', '/sci-fi-movies-online',
+    '/popular-movies-online', '/popular-tv-series-online', '/latest-tv-series-online',
+];
+const STATIC_PATHS = new Set(['/', '/sports', ...SEO_LANDING_PATHS]);
 const OUT_FILE = getSitemapOutputPath();
 const MAX_PAGES = Number(process.env.SITEMAP_MAX_PAGES || 20); // five newest pages plus a rotating deeper catalogue window
 const DISCOVERY_PAGE_LIMIT = Math.max(5, Number(process.env.SITEMAP_DISCOVERY_PAGE_LIMIT || 500));
@@ -358,7 +365,7 @@ async function validateContentUrls(urls, previouslyKnown) {
     const ttlMs = positiveInteger(process.env.SITEMAP_VALIDATION_TTL_MS, DEFAULT_VALIDATION_TTL_MS);
     const batchSize = positiveInteger(process.env.SITEMAP_VALIDATION_BATCH_SIZE, DEFAULT_VALIDATION_BATCH_SIZE);
     const state = readValidationState();
-    const staticPaths = new Set(['/', '/sports', '/watch-movies-online', '/latest-movies-online', '/moviebox-alternatives', '/free-tv-series-online']);
+    const staticPaths = STATIC_PATHS;
     const candidates = urls.filter(item => {
         const pathname = new URL(item.loc).pathname.replace(/\/$/, '') || '/';
         return /\/(?:movie|tv|music)\/\d+(?:\/|$)/.test(pathname) || staticPaths.has(pathname);
@@ -595,7 +602,7 @@ async function build() {
     };
     addUrl({ loc: `${CANONICAL_BASE}/`,       priority: '1.0', changefreq: 'daily' });
     addUrl({ loc: `${CANONICAL_BASE}/sports`, priority: '0.8', changefreq: 'hourly' });
-    for (const landingPath of ['/watch-movies-online', '/latest-movies-online', '/moviebox-alternatives', '/free-tv-series-online']) {
+    for (const landingPath of SEO_LANDING_PATHS) {
         addUrl({ loc: `${CANONICAL_BASE}${landingPath}`, priority: '0.8', changefreq: 'weekly' });
     }
 
@@ -628,7 +635,9 @@ async function build() {
         // Never carry playback URLs forward from an older sitemap. Keep only
         // typed content detail URLs and known static landing pages for now.
         if (/\/watch\//i.test(new URL(loc).pathname)) continue;
-        if (!/^https:\/\/hm-cinema\.me\/(?:$|movie\/|tv\/|music\/|sports$|watch-movies-online$|latest-movies-online$|moviebox-alternatives$|free-tv-series-online$)/.test(loc)) continue;
+        if (new URL(loc).origin !== CANONICAL_BASE) continue;
+        const pathname = new URL(loc).pathname.replace(/\/$/, '') || '/';
+        if (!/^\/(?:movie|tv|music)\/\d+(?:\/|$)/.test(pathname) && !STATIC_PATHS.has(pathname)) continue;
         addUrl({ loc, priority: '0.6', changefreq: 'weekly' });
     }
     if (existingUrls.size && urls.length < existingUrls.size) {

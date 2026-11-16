@@ -1260,10 +1260,67 @@ app.get('/', (req, res) => {
     sendFileWithCache(res, path.join(__dirname, 'index.html'), PUBLIC_HTML_CACHE);
 });
 
-// Focused, useful landing pages for broad movie/series discovery searches.
+// Build useful server-rendered catalogue landing pages from the same live
+// homepage feed used by HM CINEMA. Keep a 6-hour stale fallback so a brief
+// upstream outage does not blank these indexable entry pages.
+async function getSeoLandingCatalogue() {
+    let homepage = homeCache.get('homepage');
+    if (!homepage) {
+        const stale = homeCache.getStale('homepage', 6 * 60 * 60 * 1000);
+        try {
+            homepage = await coalesceRequest('api:homepage', async () => {
+                const response = await axios.get(
+                    `${SEARCH_HOST_URL}/wefeed-h5api-bff/home?host=h5.aoneroom.com`,
+                    { headers: { 'Accept': 'application/json', 'User-Agent': 'HM-Cinema/1.0 (+https://hm-cinema.me)' }, timeout: 30000 }
+                );
+                return { status: 'success', creator: 'Hector Manuel ', data: processApiResponse(response) };
+            });
+            homeCache.set('homepage', homepage);
+        } catch (error) {
+            homepage = stale;
+            if (!homepage) console.warn('[SEO landing] Catalogue feed unavailable:', error.message);
+        }
+    }
+
+    const sections = homepage?.data?.operatingList || [];
+    const all = sections.flatMap(section => Array.isArray(section.subjects) ? section.subjects : []);
+    const collect = (subjectType, source = all) => {
+        const unique = new Map();
+        for (const subject of source) {
+            const id = String(subject?.subjectId || '');
+            if (!id || Number(subject.subjectType) !== subjectType || subject.hasResource !== true || subject.isPornographic || subject.webHighRisk) continue;
+            const releaseTimestamp = Date.parse(subject.releaseDate || '');
+            if (releaseTimestamp && releaseTimestamp > Date.now()) continue;
+            if (!subject.cover?.url || !seo.urlFor(subject)) continue;
+            if (!unique.has(id)) unique.set(id, {
+                title: subject.title || 'Untitled',
+                releaseDate: subject.releaseDate || '',
+                genre: subject.genre || '',
+                poster: subject.cover.url,
+                url: seo.urlFor(subject)
+            });
+        }
+        return [...unique.values()].sort((a, b) => Date.parse(b.releaseDate || '') - Date.parse(a.releaseDate || ''));
+    };
+    const popularMovies = sections.filter(section => /popular\s*movie/i.test(String(section.title || section.name || ''))).flatMap(section => Array.isArray(section.subjects) ? section.subjects : []);
+    const popularSeries = sections.filter(section => /popular\s*series/i.test(String(section.title || section.name || ''))).flatMap(section => Array.isArray(section.subjects) ? section.subjects : []);
+    return {
+        movies: collect(1),
+        series: collect(2),
+        popularMovies: collect(1, popularMovies),
+        popularSeries: collect(2, popularSeries),
+    };
+}
+
+// Focused landing pages now show real catalogue entries and link directly to
+// their canonical movie/TV detail pages, instead of asking visitors to search again.
 for (const landingPath of Object.keys(seoLanding.PAGES)) {
-    app.get(landingPath, (req, res) => {
-        const html = seoLanding.render(landingPath);
+    app.get(landingPath, async (req, res) => {
+        let catalogue = { movies: [], series: [] };
+        if (seoLanding.PAGES[landingPath].catalogue) {
+            catalogue = await getSeoLandingCatalogue();
+        }
+        const html = seoLanding.render(landingPath, catalogue);
         if (!html) return res.status(404).sendFile(path.join(__dirname, '404.html'));
         res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
         res.type('html').send(html);
