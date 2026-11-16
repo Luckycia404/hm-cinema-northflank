@@ -18,12 +18,13 @@ const DISCOVERY_PAGE_LIMIT = Math.max(5, Number(process.env.SITEMAP_DISCOVERY_PA
 const PER_PAGE = 60;
 const DELAY_MS = Number(process.env.SITEMAP_DELAY_MS || 200); // gentle between pages
 const SITEMAP_LIMIT = 49000; // under Google's 50k limit
-const DEFAULT_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_INITIAL_DELAY_MS = 10 * 1000;
 const DEFAULT_VALIDATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_VALIDATION_BATCH_SIZE = 300;
-const DEFAULT_AUDIT_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_AUDIT_INITIAL_DELAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_DISCOVERY_UTC_HOUR = 2; // 02:00 Ghana time (UTC)
+const DEFAULT_DISCOVERY_UTC_MINUTE = 0;
+const DEFAULT_AUDIT_UTC_HOUR = 3; // 03:00 Ghana time (UTC), after discovery
+const DEFAULT_AUDIT_UTC_MINUTE = 0;
 const DATA_DIR = path.resolve(APP_DIR, process.env.SITEMAP_DATA_DIR || '.');
 const VALIDATION_STATE_FILE = path.join(DATA_DIR, 'sitemap-validation-state.json');
 const AUDIT_PROGRESS_FILE = path.join(DATA_DIR, 'sitemap-audit-progress.json');
@@ -64,7 +65,46 @@ function getDiscoveryPageNumbers(now = Date.now()) {
     return pages;
 }
 
-function startSitemapScheduler({ port }) {
+function getNextUtcRunDelay(hour, minute, now = Date.now()) {
+    const targetHour = Math.min(23, Math.max(0, Math.floor(Number(hour) || 0)));
+    const targetMinute = Math.min(59, Math.max(0, Math.floor(Number(minute) || 0)));
+    const next = new Date(now);
+    next.setUTCHours(targetHour, targetMinute, 0, 0);
+    if (next.getTime() <= now) next.setUTCDate(next.getUTCDate() + 1);
+    return next.getTime() - now;
+}
+
+function getAuditBatchSize(cycleTotal, days) {
+    const total = Math.max(0, Math.floor(Number(cycleTotal) || 0));
+    const cycleDays = Math.max(1, Math.floor(Number(days) || 1));
+    return Math.max(1, Math.ceil(total / cycleDays));
+}
+
+function getAuditCyclePlan(progress, availableLocs, days) {
+    const available = new Set(availableLocs);
+    const continuingCycle = Array.isArray(progress && progress.pending)
+        && !progress.completedCycle
+        && Boolean(progress.cycleStartedAt);
+    let pending = continuingCycle
+        ? progress.pending.filter(loc => available.has(loc))
+        : [...availableLocs];
+    if (!pending.length) pending = [...availableLocs];
+    const cycleTotal = continuingCycle
+        ? Math.max(pending.length, Number(progress.cycleTotal) || Number(progress.lastTotal) || pending.length)
+        : pending.length;
+    const batchTargetSize = continuingCycle && Number(progress.batchTargetSize) > 0
+        ? Math.floor(Number(progress.batchTargetSize))
+        : getAuditBatchSize(cycleTotal, days);
+    return {
+        pending,
+        cycleTotal,
+        batchTargetSize,
+        selected: pending.slice(0, batchTargetSize),
+        continuingCycle,
+    };
+}
+
+function startSitemapScheduler({ port, spawnProcess = spawn, setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout, now = Date.now } = {}) {
     const configuredEnabled = process.env.SITEMAP_SCHEDULER_ENABLED;
     const enabled = configuredEnabled === undefined
         ? process.env.NODE_ENV === 'production'
@@ -74,28 +114,32 @@ function startSitemapScheduler({ port }) {
         return () => {};
     }
 
-    const refreshIntervalMs = positiveInteger(process.env.SITEMAP_REFRESH_INTERVAL_MS, DEFAULT_REFRESH_INTERVAL_MS);
     const refreshInitialDelayMs = positiveInteger(process.env.SITEMAP_INITIAL_DELAY_MS, DEFAULT_INITIAL_DELAY_MS);
-    const auditIntervalMs = positiveInteger(process.env.SITEMAP_AUDIT_INTERVAL_MS, DEFAULT_AUDIT_INTERVAL_MS);
-    const auditInitialDelayMs = positiveInteger(process.env.SITEMAP_AUDIT_INITIAL_DELAY_MS, DEFAULT_AUDIT_INITIAL_DELAY_MS);
+    const discoveryHour = Number.isInteger(Number(process.env.SITEMAP_DISCOVERY_UTC_HOUR))
+        ? Math.min(23, Math.max(0, Number(process.env.SITEMAP_DISCOVERY_UTC_HOUR)))
+        : DEFAULT_DISCOVERY_UTC_HOUR;
+    const discoveryMinute = Number.isInteger(Number(process.env.SITEMAP_DISCOVERY_UTC_MINUTE))
+        ? Math.min(59, Math.max(0, Number(process.env.SITEMAP_DISCOVERY_UTC_MINUTE)))
+        : DEFAULT_DISCOVERY_UTC_MINUTE;
     let refreshTimer = null;
-    let auditTimer = null;
     let refreshChild = null;
     let auditChild = null;
     let activeJob = null;
+    const queuedJobs = new Set();
     let stopped = false;
 
     const launch = (kind) => {
         const isAudit = kind === 'audit';
-        const current = isAudit ? auditChild : refreshChild;
-        if (stopped || current || activeJob) {
-            if (activeJob) console.info(`[${isAudit ? 'sitemap-audit' : 'sitemap'}] Another sitemap job is active; this run will be skipped`);
+        if (stopped) return;
+        if (activeJob) {
+            queuedJobs.add(kind);
+            console.info(`[${isAudit ? 'sitemap-audit' : 'sitemap'}] Another sitemap job is active; this run has been queued`);
             return;
         }
-        console.info(isAudit ? '[sitemap-audit] Starting scheduled rolling audit' : '[sitemap] Starting scheduled discovery refresh');
+        console.info(isAudit ? '[sitemap-audit] Starting audit after discovery completed' : '[sitemap] Starting scheduled discovery refresh');
         let child;
         try {
-            child = spawn(process.execPath, [__filename, ...(isAudit ? ['--audit'] : [])], {
+            child = spawnProcess(process.execPath, [__filename, ...(isAudit ? ['--audit'] : [])], {
                 cwd: APP_DIR,
                 env: { ...process.env, PORT: String(port) },
                 stdio: 'inherit',
@@ -105,6 +149,7 @@ function startSitemapScheduler({ port }) {
             activeJob = kind;
         } catch (error) {
             console.error(`[${isAudit ? 'sitemap-audit' : 'sitemap'}] Could not launch job:`, error.message);
+            queuedJobs.delete(kind);
             return;
         }
         child.once('error', error => console.error(`[${isAudit ? 'sitemap-audit' : 'sitemap'}] Job launch error:`, error.message));
@@ -114,40 +159,43 @@ function startSitemapScheduler({ port }) {
             activeJob = null;
             const label = isAudit ? 'sitemap-audit' : 'sitemap';
             console[code === 0 ? 'info' : 'error'](`[${label}] ${code === 0 ? 'Job completed' : `Job exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}`}`);
+
+            // The audit is chained to a successful discovery completion, never to a clock.
+            if (!stopped && kind === 'refresh' && code === 0) {
+                launch('audit');
+                return;
+            }
+            if (!stopped && queuedJobs.size) {
+                const [nextKind] = queuedJobs;
+                queuedJobs.delete(nextKind);
+                launch(nextKind);
+            }
         });
     };
 
-    const scheduleRefresh = delay => {
+    const scheduleDiscovery = initialDelay => {
         if (stopped) return;
-        refreshTimer = setTimeout(() => {
+        const delay = initialDelay == null ? getNextUtcRunDelay(discoveryHour, discoveryMinute, now()) : initialDelay;
+        refreshTimer = setTimeoutFn(() => {
             launch('refresh');
-            scheduleRefresh(refreshIntervalMs);
+            scheduleDiscovery(null);
         }, delay);
         refreshTimer.unref?.();
     };
-    const scheduleAudit = delay => {
-        if (stopped) return;
-        auditTimer = setTimeout(() => {
-            launch('audit');
-            scheduleAudit(auditIntervalMs);
-        }, delay);
-        auditTimer.unref?.();
-    };
 
-    scheduleRefresh(refreshInitialDelayMs);
-    scheduleAudit(auditInitialDelayMs);
-    console.info(`[sitemap] Daily discovery enabled; first run in ${Math.ceil(refreshInitialDelayMs / 1000)}s, then every ${Math.round(refreshIntervalMs / 3600000)}h`);
-    console.info(`[sitemap-audit] Rolling audit enabled; first run in ${Math.ceil(auditInitialDelayMs / 3600000)}h, then every ${Math.round(auditIntervalMs / 3600000)}h`);
+    // Startup discovery is retained; every later daily cycle starts at 02:00 UTC.
+    scheduleDiscovery(refreshInitialDelayMs);
+    console.info(`[sitemap] Daily discovery scheduled for ${String(discoveryHour).padStart(2, '0')}:${String(discoveryMinute).padStart(2, '0')} UTC; startup run in ${Math.ceil(refreshInitialDelayMs / 1000)}s`);
+    console.info('[sitemap-audit] Audit will start only after each discovery run completes successfully');
 
     return () => {
         stopped = true;
-        if (refreshTimer) clearTimeout(refreshTimer);
-        if (auditTimer) clearTimeout(auditTimer);
+        queuedJobs.clear();
+        if (refreshTimer) clearTimeoutFn(refreshTimer);
         if (refreshChild && !refreshChild.killed) refreshChild.kill('SIGTERM');
         if (auditChild && !auditChild.killed) auditChild.kill('SIGTERM');
     };
 }
-
 function slugify(s) {
     return String(s || '')
         .toLowerCase()
@@ -402,13 +450,10 @@ async function auditExistingSitemap() {
     }
 
     const progress = readAuditProgress();
-    let pending = Array.isArray(progress.pending)
-        ? progress.pending.filter(loc => entryByLoc.has(loc))
-        : [];
-    if (!pending.length) pending = [...entryByLoc.keys()];
     const days = Math.max(1, Math.floor(Number(process.env.SITEMAP_AUDIT_CYCLE_DAYS) || 3));
-    const batchSize = Math.max(1, Math.ceil(pending.length / days));
-    const selected = pending.slice(0, batchSize);
+    // Keep the original cycle target: never divide the shrinking remainder again.
+    const plan = getAuditCyclePlan(progress, [...entryByLoc.keys()], days);
+    const { pending, cycleTotal, batchTargetSize: batchSize, selected } = plan;
     const now = Date.now();
     const state = readValidationState();
     const invalid = new Set();
@@ -455,13 +500,16 @@ async function auditExistingSitemap() {
     writeValidationState(state);
     const remaining = pending.slice(selected.length).filter(loc => entryByLoc.has(loc) && !invalid.has(loc));
     for (const loc of retryTemporary) if (entryByLoc.has(loc) && !remaining.includes(loc)) remaining.push(loc);
+    const completedCycle = remaining.length === 0;
     writeAuditProgress({
         pending: remaining,
-        cycleStartedAt: progress.cycleStartedAt || now,
+        cycleStartedAt: completedCycle ? now : (progress.cycleStartedAt || now),
+        cycleTotal: completedCycle ? entryByLoc.size : cycleTotal,
+        batchTargetSize: completedCycle ? null : batchSize,
         lastRunAt: now,
         lastBatchSize: selected.length,
         lastTotal: entryByLoc.size,
-        completedCycle: remaining.length === 0,
+        completedCycle,
     });
     console.log(`[sitemap-audit] Complete: ${valid} valid, ${removed} removed, ${temporary} temporarily unavailable; ${keptEntries.length} URLs remain; ${remaining.length} URLs left in this audit cycle`);
 }
@@ -638,5 +686,8 @@ module.exports = {
     selectValidationWork,
     urlFor,
     getDiscoveryPageNumbers,
+    getNextUtcRunDelay,
+    getAuditBatchSize,
+    getAuditCyclePlan,
     auditExistingSitemap,
 };
